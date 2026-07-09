@@ -1,5 +1,5 @@
 const indicadores = [
-  { titulo: "Obreiros cadastrados", valor: "8", detalhe: "Base inicial" },
+  { titulo: "Obreiros cadastrados", valor: "6", detalhe: "Base inicial" },
   { titulo: "Mensalidades", valor: "R$ 0,00", detalhe: "Controle da tesouraria" },
   { titulo: "Presenças", valor: "0%", detalhe: "Frequência geral" },
   { titulo: "Pendências", valor: "0", detalhe: "Secretaria e gestão" },
