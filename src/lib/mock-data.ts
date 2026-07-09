@@ -1,6 +1,16 @@
 import type { Obreiro } from "@/types";
 
 export const modulos = [
+  {
+    nome: "Prestação de Contas",
+    href: "/prestacao-contas",
+    descricao: "Relatório mensal e anual de receitas, despesas, saldo e pendências.",
+  },
+  {
+    nome: "Configurações",
+    href: "/configuracoes",
+    descricao: "Data de início da gestão, ano de trabalho, saldo inicial e dívidas herdadas.",
+  },
   { nome: "Dashboard", href: "/dashboard" },
   { nome: "Obreiros", href: "/obreiros" },
   { nome: "Tesouraria", href: "/tesouraria" },

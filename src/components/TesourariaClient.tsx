@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
 import type { Obreiro } from "@/types";
+import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -58,21 +59,6 @@ type CustoLoja = {
   dataFim: string;
   parcelas: ParcelaCustoLoja[];
 };
-
-const meses2026 = [
-  { id: "2026-01", nome: "Janeiro/2026" },
-  { id: "2026-02", nome: "Fevereiro/2026" },
-  { id: "2026-03", nome: "Março/2026" },
-  { id: "2026-04", nome: "Abril/2026" },
-  { id: "2026-05", nome: "Maio/2026" },
-  { id: "2026-06", nome: "Junho/2026" },
-  { id: "2026-07", nome: "Julho/2026" },
-  { id: "2026-08", nome: "Agosto/2026" },
-  { id: "2026-09", nome: "Setembro/2026" },
-  { id: "2026-10", nome: "Outubro/2026" },
-  { id: "2026-11", nome: "Novembro/2026" },
-  { id: "2026-12", nome: "Dezembro/2026" },
-];
 
 const regraInicial: RegraMensalidade = {
   id: "regra-inicial-2026",
@@ -190,7 +176,12 @@ function gerarParcelasCusto(valorTotal: number, qtd: number, dataInicio: string)
 
 export function TesourariaClient() {
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
-  const [mesSelecionado, setMesSelecionado] = useState("2026-07");
+  const [anoTrabalho, setAnoTrabalho] = useState(anoAtualSistema());
+  const [mesSelecionado, setMesSelecionado] = useState(() =>
+    mesAtualDoSistemaNoAno(anoAtualSistema())
+  );
+
+  const mesesDoAno = useMemo(() => gerarMesesDoAno(anoTrabalho), [anoTrabalho]);
   const [busca, setBusca] = useState("");
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
   const [regras, setRegras] = useState<RegraMensalidade[]>([regraInicial]);
@@ -204,6 +195,10 @@ export function TesourariaClient() {
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
+    const anoSalvo = Number(localStorage.getItem("sigma_ano_trabalho") ?? anoAtualSistema());
+    setAnoTrabalho(anoSalvo);
+    setMesSelecionado(mesAtualDoSistemaNoAno(anoSalvo));
+
     setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
 
     const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
@@ -217,6 +212,10 @@ export function TesourariaClient() {
     setSaldoAnterior(Number(localStorage.getItem("sigma_saldo_anterior") ?? 0));
     setCarregado(true);
   }, []);
+
+  useEffect(() => {
+    if (carregado) localStorage.setItem("sigma_ano_trabalho", String(anoTrabalho));
+  }, [anoTrabalho, carregado]);
 
   useEffect(() => {
     if (carregado) localStorage.setItem("sigma_recebimentos_tesouraria", JSON.stringify(recebimentos));
@@ -255,11 +254,11 @@ export function TesourariaClient() {
   }
 
   function valorTotalAno() {
-    return meses2026.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
+    return mesesDoAno.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
   }
 
   function nomeMes(mesId: string) {
-    return meses2026.find((mes) => mes.id === mesId)?.nome ?? mesId;
+    return mesesDoAno.find((mes) => mes.id === mesId)?.nome ?? mesId;
   }
 
   function hojeDoSistema() {
@@ -306,7 +305,7 @@ export function TesourariaClient() {
     const totalPago = totalPagoAcumuladoObreiro(obreiroId);
     let saldoPago = totalPago;
 
-    const meses = meses2026.map((mes) => {
+    const meses = mesesDoAno.map((mes) => {
       const valorDevido = valorVigenteDoMes(mes.id);
       const valorPago = Math.min(valorDevido, Math.max(saldoPago, 0));
 
@@ -848,12 +847,24 @@ export function TesourariaClient() {
           </div>
 
           <div className="flex flex-wrap gap-3">
+            <input
+              type="number"
+              value={anoTrabalho}
+              onChange={(evento) => {
+                const novoAno = Number(evento.target.value);
+                setAnoTrabalho(novoAno);
+                setMesSelecionado(mesAtualDoSistemaNoAno(novoAno));
+              }}
+              className="w-32 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              placeholder="Ano"
+            />
+
             <select
               value={mesSelecionado}
               onChange={(evento) => setMesSelecionado(evento.target.value)}
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             >
-              {meses2026.map((mes) => (
+              {mesesDoAno.map((mes) => (
                 <option key={mes.id} value={mes.id}>
                   {mes.nome}
                 </option>
