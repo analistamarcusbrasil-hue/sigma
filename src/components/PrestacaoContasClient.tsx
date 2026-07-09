@@ -178,6 +178,8 @@ function nomeMes(mesId: string) {
 }
 
 function lerLocalStorage<T>(chave: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+
   try {
     const valor = localStorage.getItem(chave);
     if (!valor) return fallback;
@@ -196,6 +198,8 @@ function normalizarObreiros(lista: Obreiro[]) {
 }
 
 function obterGestaoAtual() {
+  if (typeof window === "undefined") return null;
+
   const gestoes = lerLocalStorage<GestaoLoja[]>("sigma_gestoes", []);
   const gestaoAtualId = localStorage.getItem("sigma_gestao_atual_id") ?? "";
   const gestao = gestoes.find((item) => item.id === gestaoAtualId);
@@ -206,7 +210,10 @@ function obterGestaoAtual() {
 }
 
 function saldoInicialGestao(gestao: GestaoLoja | null) {
-  if (!gestao) return Number(localStorage.getItem("sigma_saldo_anterior") ?? 0);
+  if (!gestao) {
+    if (typeof window === "undefined") return 0;
+    return Number(localStorage.getItem("sigma_saldo_anterior") ?? 0);
+  }
 
   return (
     Number(gestao.financeiroPositivoRecebido || 0) -
@@ -261,7 +268,13 @@ export function PrestacaoContasClient() {
 
   useEffect(() => {
     const gestao = obterGestaoAtual();
-    const ano = gestao?.anoTrabalho || Number(localStorage.getItem("sigma_ano_trabalho") ?? new Date().getFullYear());
+    const ano =
+      gestao?.anoTrabalho ||
+      Number(
+        typeof window !== "undefined"
+          ? localStorage.getItem("sigma_ano_trabalho") ?? new Date().getFullYear()
+          : new Date().getFullYear()
+      );
     const mesesValidos = gerarMesesDoAno(ano).filter((mes) => mesCobravel(mes.id, gestao));
 
     setGestaoAtual(gestao);
