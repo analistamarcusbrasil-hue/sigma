@@ -1,8 +1,35 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
-import type { Obreiro, RegistroPresenca } from "@/types";
+import type { Obreiro } from "@/types";
+
+type TipoRelatorio = "Gestão";
+
+type CargosGestao = {
+  veneravelMestre?: string;
+  primeiroVigilante?: string;
+  segundoVigilante?: string;
+  orador?: string;
+  secretario?: string;
+  tesoureiro?: string;
+  chanceler?: string;
+  mestreCerimonias?: string;
+};
+
+type GestaoLoja = {
+  id: string;
+  nomeGestao: string;
+  gestaoAnteriorRepasse: string;
+  dataInicioGestao: string;
+  dataFimGestao: string;
+  anoTrabalho: number;
+  financeiroPositivoRecebido: number;
+  financeiroNegativoRecebido: number;
+  observacaoRepasse?: string;
+  cargos?: CargosGestao;
+};
 
 type RegraMensalidade = {
   id: string;
@@ -26,6 +53,28 @@ type Lancamento = {
   valor: number;
 };
 
+type ParcelaCustoLoja = {
+  id: string;
+  numero: number;
+  vencimento: string;
+  valor: number;
+  pago: boolean;
+  dataPagamento: string;
+};
+
+type CustoLoja = {
+  id: string;
+  fornecedorNome: string;
+  cnpj: string;
+  tipoDivida: string;
+  descricao: string;
+  valorTotal: number;
+  parcelasQtd: number;
+  dataInicio: string;
+  dataFim: string;
+  parcelas: ParcelaCustoLoja[];
+};
+
 type Sessao = {
   id: string;
   data: string;
@@ -33,6 +82,14 @@ type Sessao = {
   grau?: string;
   titulo?: string;
   observacao?: string;
+};
+
+type RegistroPresenca = {
+  sessaoId: string;
+  obreiroId: string;
+  status: "Não marcado" | "Presente" | "Falta" | "Justificado";
+  observacao?: string;
+  cargoSessao?: string;
 };
 
 type DocumentoSecretaria = {
@@ -87,24 +144,24 @@ type DecisaoLoja = {
   origem: string;
 };
 
-const meses2026 = [
-  { id: "2026-01", nome: "Janeiro/2026" },
-  { id: "2026-02", nome: "Fevereiro/2026" },
-  { id: "2026-03", nome: "Março/2026" },
-  { id: "2026-04", nome: "Abril/2026" },
-  { id: "2026-05", nome: "Maio/2026" },
-  { id: "2026-06", nome: "Junho/2026" },
-  { id: "2026-07", nome: "Julho/2026" },
-  { id: "2026-08", nome: "Agosto/2026" },
-  { id: "2026-09", nome: "Setembro/2026" },
-  { id: "2026-10", nome: "Outubro/2026" },
-  { id: "2026-11", nome: "Novembro/2026" },
-  { id: "2026-12", nome: "Dezembro/2026" },
+const nomesMeses = [
+  "Janeiro",
+  "Fevereiro",
+  "Março",
+  "Abril",
+  "Maio",
+  "Junho",
+  "Julho",
+  "Agosto",
+  "Setembro",
+  "Outubro",
+  "Novembro",
+  "Dezembro",
 ];
 
 const regraInicial: RegraMensalidade = {
-  id: "regra-inicial-2026",
-  dataInicio: "2026-01-01",
+  id: "regra-inicial",
+  dataInicio: "2025-01-01",
   valor: 100,
   descricao: "Valor inicial da mensalidade",
 };
@@ -117,13 +174,81 @@ function formatarMoeda(valor: number) {
 }
 
 function formatarDataBR(dataISO: string) {
-  if (!dataISO) return "Sem data";
+  if (!dataISO) return "Não informado";
 
   const partes = dataISO.split("-");
   if (partes.length !== 3) return dataISO;
 
   const [ano, mes, dia] = partes;
   return `${dia}/${mes}/${ano}`;
+}
+
+function dataLocal(dataISO: string) {
+  if (!dataISO) return null;
+
+  const dataTratada = dataISO.length === 7 ? `${dataISO}-01` : dataISO;
+  const partes = dataTratada.split("-").map(Number);
+
+  if (partes.length !== 3) return null;
+
+  const [ano, mes, dia] = partes;
+  return new Date(ano, mes - 1, dia, 12, 0, 0);
+}
+
+function hojeLocal() {
+  const hoje = new Date();
+  hoje.setHours(12, 0, 0, 0);
+  return hoje;
+}
+
+function vencimentoDoMes(mesId: string) {
+  return `${mesId}-05`;
+}
+
+function gerarMesesEntreDatas(dataInicio: string, dataFim?: string) {
+  const inicio = dataLocal(dataInicio);
+  const fimInformado = dataLocal(dataFim ?? "");
+  const fim = fimInformado && fimInformado < hojeLocal() ? fimInformado : hojeLocal();
+
+  if (!inicio) return [];
+
+  const meses: string[] = [];
+  const cursor = new Date(inicio.getFullYear(), inicio.getMonth(), 1, 12, 0, 0);
+
+  while (cursor <= fim) {
+    const ano = cursor.getFullYear();
+    const mes = String(cursor.getMonth() + 1).padStart(2, "0");
+    meses.push(`${ano}-${mes}`);
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+
+  return meses;
+}
+
+function dataDentroDaGestao(dataISO: string, gestao: GestaoLoja | null) {
+  if (!gestao) return true;
+
+  const data = dataLocal(dataISO);
+  const inicio = dataLocal(gestao.dataInicioGestao);
+  const fim = dataLocal(gestao.dataFimGestao);
+
+  if (!data) return false;
+  if (inicio && data < inicio) return false;
+  if (fim && data > fim) return false;
+
+  return true;
+}
+
+function lerLocalStorage<T>(chave: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+
+  try {
+    const valor = localStorage.getItem(chave);
+    if (!valor) return fallback;
+    return JSON.parse(valor) as T;
+  } catch {
+    return fallback;
+  }
 }
 
 function normalizarObreiros(lista: Obreiro[]) {
@@ -134,76 +259,49 @@ function normalizarObreiros(lista: Obreiro[]) {
   }));
 }
 
-function lerLocalStorage<T>(chave: string, fallback: T): T {
-  try {
-    const valor = localStorage.getItem(chave);
-    if (!valor) return fallback;
-    return JSON.parse(valor) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function hojeDoSistema() {
-  const hoje = new Date();
-  hoje.setHours(12, 0, 0, 0);
-  return hoje;
-}
-
-function dataVencimentoDoMes(mes: string) {
-  const [ano, numeroMes] = mes.split("-").map(Number);
-  return new Date(ano, numeroMes - 1, 5, 12, 0, 0);
-}
-
-function mesAtualDoSistema() {
-  const hoje = hojeDoSistema();
-  const ano = hoje.getFullYear();
-  const mes = String(hoje.getMonth() + 1).padStart(2, "0");
-  const mesAtual = `${ano}-${mes}`;
-
-  return meses2026.some((item) => item.id === mesAtual) ? mesAtual : "2026-07";
-}
-
-function calcularStatusFrequencia(percentual: number, faltas: number) {
-  if (faltas > 0 && percentual < 50) {
-    return {
-      texto: "Notificar Chancelaria",
-      classe: "border-red-400/30 bg-red-400/10 text-red-300",
-    };
+function saldoInicialGestao(gestao: GestaoLoja | null) {
+  if (!gestao) {
+    if (typeof window === "undefined") return 0;
+    return Number(localStorage.getItem("sigma_saldo_anterior") ?? 0);
   }
 
-  if (faltas > 0 && percentual < 75) {
-    return {
-      texto: "Atenção",
-      classe: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-    };
-  }
+  return (
+    Number(gestao.financeiroPositivoRecebido || 0) -
+    Number(gestao.financeiroNegativoRecebido || 0)
+  );
+}
 
-  return {
-    texto: "Regular",
-    classe: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-  };
+function obterGestaoAtual() {
+  if (typeof window === "undefined") return null;
+
+  const gestoes = lerLocalStorage<GestaoLoja[]>("sigma_gestoes", []);
+  const gestaoAtualId = localStorage.getItem("sigma_gestao_atual_id") ?? "";
+  const gestao = gestoes.find((item) => item.id === gestaoAtualId);
+
+  return gestao ?? null;
 }
 
 export function DashboardClient() {
+  const [gestaoAtual, setGestaoAtual] = useState<GestaoLoja | null>(null);
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [regras, setRegras] = useState<RegraMensalidade[]>([regraInicial]);
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
-  const [saldoAnterior, setSaldoAnterior] = useState(0);
+  const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
-  const [documentosSecretaria, setDocumentosSecretaria] = useState<DocumentoSecretaria[]>([]);
-  const [acoesSecretaria, setAcoesSecretaria] = useState<AcaoPendente[]>([]);
-  const [processosSecretaria, setProcessosSecretaria] = useState<ProcessoSecretaria[]>([]);
-  const [pecasSecretaria, setPecasSecretaria] = useState<PecaArquitetura[]>([]);
-  const [decisoesLoja, setDecisoesLoja] = useState<DecisaoLoja[]>([]);
+  const [documentos, setDocumentos] = useState<DocumentoSecretaria[]>([]);
+  const [acoes, setAcoes] = useState<AcaoPendente[]>([]);
+  const [processos, setProcessos] = useState<ProcessoSecretaria[]>([]);
+  const [pecas, setPecas] = useState<PecaArquitetura[]>([]);
+  const [decisoes, setDecisoes] = useState<DecisaoLoja[]>([]);
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
-    setObreiros(
-      normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase))
-    );
+    const gestao = obterGestaoAtual();
+
+    setGestaoAtual(gestao);
+    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
 
     const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
       regraInicial,
@@ -212,140 +310,16 @@ export function DashboardClient() {
     setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
     setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
     setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
-    setSaldoAnterior(Number(localStorage.getItem("sigma_saldo_anterior") ?? 0));
+    setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
-    setDocumentosSecretaria(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
-    setAcoesSecretaria(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
-    setProcessosSecretaria(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
-    setPecasSecretaria(lerLocalStorage<PecaArquitetura[]>("sigma_pecas_secretaria", []));
-    setDecisoesLoja(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
+    setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
+    setAcoes(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
+    setProcessos(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
+    setPecas(lerLocalStorage<PecaArquitetura[]>("sigma_pecas_secretaria", []));
+    setDecisoes(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
     setCarregado(true);
   }, []);
-
-  const regrasOrdenadas = useMemo(() => {
-    return [...regras].sort(
-      (a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime()
-    );
-  }, [regras]);
-
-  function valorVigenteDoMes(mes: string) {
-    const dataReferencia = new Date(`${mes}-01T12:00:00`);
-
-    const regrasValidas = regrasOrdenadas.filter((regra) => {
-      return new Date(`${regra.dataInicio}T12:00:00`) <= dataReferencia;
-    });
-
-    return regrasValidas.at(-1)?.valor ?? 100;
-  }
-
-  function mesesVencidosAteHoje() {
-    const hoje = hojeDoSistema();
-
-    return meses2026.filter((mes) => {
-      return dataVencimentoDoMes(mes.id).getTime() <= hoje.getTime();
-    });
-  }
-
-  function valorTotalAno() {
-    return meses2026.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
-  }
-
-  function distribuicaoFinanceiraIrmao(obreiroId: string) {
-    const totalPago = recebimentos
-      .filter((item) => item.obreiroId === obreiroId)
-      .reduce((total, item) => total + item.valor, 0);
-
-    let saldoPago = totalPago;
-
-    const meses = meses2026.map((mes) => {
-      const valorDevido = valorVigenteDoMes(mes.id);
-      const valorPago = Math.min(valorDevido, Math.max(saldoPago, 0));
-
-      saldoPago = Math.max(saldoPago - valorDevido, 0);
-
-      const emAberto = Math.max(valorDevido - valorPago, 0);
-      const vencido = dataVencimentoDoMes(mes.id).getTime() <= hojeDoSistema().getTime();
-
-      return {
-        mes: mes.id,
-        nome: mes.nome,
-        valorDevido,
-        valorPago,
-        emAberto,
-        vencido,
-      };
-    });
-
-    const vencidos = meses.filter((item) => item.vencido);
-
-    const totalEmAberto = vencidos.reduce((total, item) => total + item.emAberto, 0);
-    const mesesEmAberto = vencidos.filter((item) => item.emAberto > 0).length;
-
-    const mesesQuitadosEmSequencia = [];
-
-    for (const mes of meses) {
-      if (mes.valorPago >= mes.valorDevido) {
-        mesesQuitadosEmSequencia.push(mes);
-      } else {
-        break;
-      }
-    }
-
-    const ultimoMesQuitado = mesesQuitadosEmSequencia.at(-1);
-
-    return {
-      totalPago,
-      totalEmAberto,
-      mesesEmAberto,
-      ultimoMesQuitado,
-      pagoAnoTodo: totalPago >= valorTotalAno(),
-      credito: Math.max(totalPago - valorTotalAno(), 0),
-    };
-  }
-
-  function scoreTesouraria(obreiroId: string) {
-    const distribuicao = distribuicaoFinanceiraIrmao(obreiroId);
-
-    if (distribuicao.pagoAnoTodo) {
-      return {
-        texto: `★ Pago até ${distribuicao.ultimoMesQuitado?.nome ?? "Dezembro/2026"}`,
-        detalhe:
-          distribuicao.credito > 0
-            ? `Anuidade quitada | Crédito: ${formatarMoeda(distribuicao.credito)}`
-            : "Anuidade quitada",
-        classe: "border-amber-300/40 bg-amber-400/15 text-amber-200",
-        ordem: 4,
-      };
-    }
-
-    if (distribuicao.mesesEmAberto >= 3) {
-      return {
-        texto: "Notificar Tesouraria",
-        detalhe: `${distribuicao.mesesEmAberto} meses em aberto`,
-        classe: "border-red-400/30 bg-red-400/10 text-red-300",
-        ordem: 1,
-      };
-    }
-
-    if (distribuicao.mesesEmAberto > 0) {
-      return {
-        texto: "Atenção",
-        detalhe: `${distribuicao.mesesEmAberto} mês(es) em aberto`,
-        classe: "border-amber-400/30 bg-amber-400/10 text-amber-300",
-        ordem: 2,
-      };
-    }
-
-    return {
-      texto: distribuicao.ultimoMesQuitado
-        ? `Pago até ${distribuicao.ultimoMesQuitado.nome}`
-        : "Adimplente",
-      detalhe: "Sem dívida vencida",
-      classe: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
-      ordem: 3,
-    };
-  }
 
   const obreirosDaLoja = useMemo(() => {
     return [...obreiros]
@@ -354,77 +328,228 @@ export function DashboardClient() {
       .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [obreiros]);
 
-  const financeiroPorObreiro = useMemo(() => {
+  const regrasOrdenadas = useMemo(() => {
+    return [...regras].sort(
+      (a, b) => new Date(a.dataInicio).getTime() - new Date(b.dataInicio).getTime()
+    );
+  }, [regras]);
+
+  function valorVigenteDoMes(mesId: string) {
+    const referencia = dataLocal(vencimentoDoMes(mesId));
+
+    const regrasValidas = regrasOrdenadas.filter((regra) => {
+      const dataRegra = dataLocal(regra.dataInicio);
+      return dataRegra && referencia && dataRegra <= referencia;
+    });
+
+    return regrasValidas.at(-1)?.valor ?? 100;
+  }
+
+  function totalPagoObreiro(obreiroId: string) {
+    return recebimentos
+      .filter((item) => item.obreiroId === obreiroId)
+      .filter((item) => dataDentroDaGestao(vencimentoDoMes(item.mesLancamento), gestaoAtual))
+      .reduce((total, item) => total + item.valor, 0);
+  }
+
+  function inadimplenciaObreiro(obreiroId: string) {
+    const mesesCobranca = gerarMesesEntreDatas(
+      gestaoAtual?.dataInicioGestao || `${new Date().getFullYear()}-01-01`,
+      gestaoAtual?.dataFimGestao
+    );
+
+    let saldoPago = totalPagoObreiro(obreiroId);
+    let emAberto = 0;
+    let mesesEmAberto = 0;
+
+    mesesCobranca.forEach((mesId) => {
+      const vencimento = dataLocal(vencimentoDoMes(mesId));
+
+      if (!vencimento || vencimento > hojeLocal()) return;
+
+      const devido = valorVigenteDoMes(mesId);
+      const pago = Math.min(devido, Math.max(saldoPago, 0));
+
+      saldoPago = Math.max(saldoPago - devido, 0);
+
+      const aberto = Math.max(devido - pago, 0);
+
+      if (aberto > 0) {
+        emAberto += aberto;
+        mesesEmAberto += 1;
+      }
+    });
+
+    return {
+      totalPago: totalPagoObreiro(obreiroId),
+      emAberto,
+      mesesEmAberto,
+    };
+  }
+
+  const parcelasCustos = useMemo(() => {
+    return custosLoja.flatMap((custo) =>
+      custo.parcelas.map((parcela) => ({
+        ...parcela,
+        custoId: custo.id,
+        fornecedorNome: custo.fornecedorNome,
+        tipoDivida: custo.tipoDivida,
+      }))
+    );
+  }, [custosLoja]);
+
+  const financeiro = useMemo(() => {
+    const saldoInicial = saldoInicialGestao(gestaoAtual);
+
+    const mensalidades = recebimentos
+      .filter((item) => dataDentroDaGestao(vencimentoDoMes(item.mesLancamento), gestaoAtual))
+      .reduce((total, item) => total + item.valor, 0);
+
+    const tronco = lancamentos
+      .filter((item) => item.tipo === "Tronco de Solidariedade")
+      .filter((item) => dataDentroDaGestao(item.data, gestaoAtual))
+      .reduce((total, item) => total + item.valor, 0);
+
+    const receitasExtras = lancamentos
+      .filter((item) => item.tipo === "Receita Extra")
+      .filter((item) => dataDentroDaGestao(item.data, gestaoAtual))
+      .reduce((total, item) => total + item.valor, 0);
+
+    const despesasAvulsas = lancamentos
+      .filter((item) => item.tipo === "Despesa")
+      .filter((item) => dataDentroDaGestao(item.data, gestaoAtual))
+      .reduce((total, item) => total + item.valor, 0);
+
+    const custosPagos = parcelasCustos
+      .filter((parcela) => parcela.pago)
+      .filter((parcela) =>
+        dataDentroDaGestao(parcela.dataPagamento || parcela.vencimento, gestaoAtual)
+      )
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const custosEmAberto = parcelasCustos
+      .filter((parcela) => !parcela.pago)
+      .filter((parcela) => dataDentroDaGestao(parcela.vencimento, gestaoAtual))
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const custosVencidos = parcelasCustos
+      .filter((parcela) => !parcela.pago)
+      .filter((parcela) => dataDentroDaGestao(parcela.vencimento, gestaoAtual))
+      .filter((parcela) => {
+        const vencimento = dataLocal(parcela.vencimento);
+        return vencimento && vencimento <= hojeLocal();
+      })
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const dividaObreiros = obreirosDaLoja.reduce((total, obreiro) => {
+      return total + inadimplenciaObreiro(obreiro.id).emAberto;
+    }, 0);
+
+    const entradas = mensalidades + tronco + receitasExtras;
+    const saidas = despesasAvulsas + custosPagos;
+    const saldoAtual = saldoInicial + entradas - saidas;
+    const saldoProjetado = saldoAtual + dividaObreiros - custosEmAberto;
+
+    return {
+      saldoInicial,
+      mensalidades,
+      tronco,
+      receitasExtras,
+      despesasAvulsas,
+      custosPagos,
+      custosEmAberto,
+      custosVencidos,
+      dividaObreiros,
+      entradas,
+      saidas,
+      saldoAtual,
+      saldoProjetado,
+    };
+  }, [gestaoAtual, recebimentos, lancamentos, parcelasCustos, obreirosDaLoja, regras]);
+
+  const inadimplentes = useMemo(() => {
     return obreirosDaLoja
+      .map((obreiro) => ({
+        obreiro,
+        ...inadimplenciaObreiro(obreiro.id),
+      }))
+      .filter((item) => item.emAberto > 0)
+      .sort((a, b) => b.emAberto - a.emAberto)
+      .slice(0, 8);
+  }, [obreirosDaLoja, recebimentos, regras, gestaoAtual]);
+
+  const chancelaria = useMemo(() => {
+    const sessoesGestao = sessoes
+      .filter((sessao) => dataDentroDaGestao(sessao.data, gestaoAtual))
+      .sort((a, b) => new Date(a.data).getTime() - new Date(b.data).getTime());
+
+    const proximas = sessoesGestao.filter((sessao) => {
+      const data = dataLocal(sessao.data);
+      return data && data >= hojeLocal();
+    });
+
+    const proximaSessao = proximas[0];
+
+    const baixaFrequencia = obreirosDaLoja
       .map((obreiro) => {
-        const distribuicao = distribuicaoFinanceiraIrmao(obreiro.id);
-        const score = scoreTesouraria(obreiro.id);
+        const registros = presencas.filter((presenca) => presenca.obreiroId === obreiro.id);
+
+        const sessoesValidas = sessoesGestao.filter((sessao) =>
+          registros.some(
+            (registro) =>
+              registro.sessaoId === sessao.id &&
+              (registro.status === "Presente" || registro.status === "Falta")
+          )
+        );
+
+        const presentes = registros.filter((registro) => {
+          const sessaoExiste = sessoesGestao.some((sessao) => sessao.id === registro.sessaoId);
+          return sessaoExiste && registro.status === "Presente";
+        }).length;
+
+        const faltas = registros.filter((registro) => {
+          const sessaoExiste = sessoesGestao.some((sessao) => sessao.id === registro.sessaoId);
+          return sessaoExiste && registro.status === "Falta";
+        }).length;
+
+        const totalComputado = presentes + faltas;
+        const frequencia = totalComputado > 0 ? (presentes / totalComputado) * 100 : 100;
 
         return {
           obreiro,
-          totalPago: distribuicao.totalPago,
-          totalEmAberto: distribuicao.totalEmAberto,
-          mesesEmAberto: distribuicao.mesesEmAberto,
-          score,
+          frequencia,
+          faltas,
+          sessoesComputadas: sessoesValidas.length,
         };
       })
-      .sort((a, b) => {
-        if (a.score.ordem !== b.score.ordem) return a.score.ordem - b.score.ordem;
-        return b.totalEmAberto - a.totalEmAberto;
-      });
-  }, [obreirosDaLoja, recebimentos, regras]);
+      .filter((item) => item.faltas > 0 && item.frequencia < 50)
+      .sort((a, b) => a.frequencia - b.frequencia)
+      .slice(0, 6);
 
-  const chancelariaPorObreiro = useMemo(() => {
-    const hoje = hojeDoSistema();
-    const limite = new Date(hoje);
-    limite.setFullYear(limite.getFullYear() - 1);
+    return {
+      sessoesGestao,
+      proximaSessao,
+      baixaFrequencia,
+    };
+  }, [sessoes, presencas, obreirosDaLoja, gestaoAtual]);
 
-    const sessoesPeriodo = sessoes.filter((sessao) => {
-      if (!sessao.data) return false;
-
-      const dataSessao = new Date(`${sessao.data}T12:00:00`);
-      return dataSessao >= limite && dataSessao <= hoje;
-    });
-
-    return obreirosDaLoja.map((obreiro) => {
-      const registros = sessoesPeriodo
-        .map((sessao) =>
-          presencas.find(
-            (presenca) =>
-              presenca.obreiroId === obreiro.id && presenca.sessaoId === sessao.id
-          )
-        )
-        .filter(Boolean) as RegistroPresenca[];
-
-      const presentes = registros.filter((item) => item.status === "Presente").length;
-      const faltas = registros.filter((item) => item.status === "Falta").length;
-      const totalConsiderado = presentes + faltas;
-      const percentual = totalConsiderado > 0 ? Math.round((presentes / totalConsiderado) * 100) : 100;
-      const status = calcularStatusFrequencia(percentual, faltas);
-
-      return {
-        obreiro,
-        presentes,
-        faltas,
-        percentual,
-        status,
-      };
-    });
-  }, [obreirosDaLoja, sessoes, presencas]);
-
-  const resumoSecretaria = useMemo(() => {
-    const documentosPendentes = documentosSecretaria.filter((item) =>
-      item.status === "Rascunho" || item.status === "Em revisão"
+  const secretaria = useMemo(() => {
+    const documentosGestao = documentos.filter((documento) =>
+      dataDentroDaGestao(documento.data, gestaoAtual)
     );
 
-    const documentosAprovados = documentosSecretaria.filter((item) =>
-      item.status === "Aprovado" || item.status === "Arquivado"
+    const documentosPendentes = documentosGestao.filter(
+      (documento) => documento.status === "Rascunho" || documento.status === "Em revisão"
     );
 
-    const acoesPendentes = acoesSecretaria.filter((item) => item.status !== "Concluída");
-    const processosAbertos = processosSecretaria.filter((item) => item.status !== "Concluído");
-    const pecasPrevistas = pecasSecretaria.filter((item) => item.status === "Prevista");
-    const decisoesVigentes = decisoesLoja.filter((item) => item.status === "Vigente");
+    const documentosAprovados = documentosGestao.filter(
+      (documento) => documento.status === "Aprovado" || documento.status === "Arquivado"
+    );
+
+    const acoesPendentes = acoes.filter((acao) => acao.status !== "Concluída");
+    const processosAbertos = processos.filter((processo) => processo.status !== "Concluído");
+    const pecasPrevistas = pecas.filter((peca) => peca.status === "Prevista");
+    const decisoesVigentes = decisoes.filter((decisao) => decisao.status === "Vigente");
 
     return {
       documentosPendentes,
@@ -434,363 +559,385 @@ export function DashboardClient() {
       pecasPrevistas,
       decisoesVigentes,
     };
-  }, [
-    documentosSecretaria,
-    acoesSecretaria,
-    processosSecretaria,
-    pecasSecretaria,
-    decisoesLoja,
-  ]);
+  }, [documentos, acoes, processos, pecas, decisoes, gestaoAtual]);
 
-  const resumo = useMemo(() => {
-    const mesAtual = mesAtualDoSistema();
+  const alertas = useMemo(() => {
+    const lista = [];
 
-    const recebidoMes = recebimentos
-      .filter((item) => item.mesLancamento === mesAtual)
-      .reduce((total, item) => total + item.valor, 0);
+    if (!gestaoAtual) {
+      lista.push({
+        titulo: "Nenhuma gestão atual definida",
+        texto: "Cadastre uma gestão e marque como atual para o sistema trabalhar corretamente.",
+        href: "/configuracoes",
+        cor: "red",
+      });
+    }
 
-    const totalRecebidoMensalidades = recebimentos.reduce(
-      (total, item) => total + item.valor,
-      0
-    );
+    if (financeiro.custosVencidos > 0) {
+      lista.push({
+        titulo: "Custos vencidos",
+        texto: `Existem ${formatarMoeda(financeiro.custosVencidos)} em custos vencidos ou obrigações em aberto.`,
+        href: "/tesouraria",
+        cor: "red",
+      });
+    }
 
-    const tronco = lancamentos
-      .filter((item) => item.tipo === "Tronco de Solidariedade")
-      .reduce((total, item) => total + item.valor, 0);
+    if (financeiro.dividaObreiros > 0) {
+      lista.push({
+        titulo: "Pendência de obreiros",
+        texto: `Existem ${formatarMoeda(financeiro.dividaObreiros)} em mensalidades vencidas.`,
+        href: "/tesouraria",
+        cor: "amber",
+      });
+    }
 
-    const receitas = lancamentos
-      .filter((item) => item.tipo === "Receita Extra")
-      .reduce((total, item) => total + item.valor, 0);
+    if (secretaria.documentosPendentes.length > 0) {
+      lista.push({
+        titulo: "Documentos pendentes",
+        texto: `${secretaria.documentosPendentes.length} documento(s) aguardando revisão ou aprovação.`,
+        href: "/secretaria",
+        cor: "amber",
+      });
+    }
 
-    const despesas = lancamentos
-      .filter((item) => item.tipo === "Despesa")
-      .reduce((total, item) => total + item.valor, 0);
+    if (secretaria.acoesPendentes.length > 0) {
+      lista.push({
+        titulo: "Ações da Secretaria",
+        texto: `${secretaria.acoesPendentes.length} ação(ões) pendente(s) de acompanhamento.`,
+        href: "/secretaria",
+        cor: "sky",
+      });
+    }
 
-    const dividaTotal = financeiroPorObreiro.reduce(
-      (total, item) => total + item.totalEmAberto,
-      0
-    );
+    if (lista.length === 0) {
+      lista.push({
+        titulo: "Gestão sem alertas críticos",
+        texto: "Não há pendências críticas no momento.",
+        href: "/dashboard",
+        cor: "emerald",
+      });
+    }
 
-    const notificarTesouraria = financeiroPorObreiro.filter(
-      (item) => item.score.texto === "Notificar Tesouraria"
-    ).length;
-
-    const baixaFrequencia = chancelariaPorObreiro.filter(
-      (item) => item.status.texto === "Notificar Chancelaria"
-    ).length;
-
-    return {
-      mesAtual,
-      recebidoMes,
-      totalRecebidoMensalidades,
-      dividaTotal,
-      notificarTesouraria,
-      baixaFrequencia,
-      saldoAtual: saldoAnterior + totalRecebidoMensalidades + tronco + receitas - despesas,
-      mesesVencidos: mesesVencidosAteHoje().length,
-    };
-  }, [
-    recebimentos,
-    lancamentos,
-    saldoAnterior,
-    financeiroPorObreiro,
-    chancelariaPorObreiro,
-    regras,
-  ]);
-
-  const proximaSessao = useMemo(() => {
-    const hoje = hojeDoSistema();
-
-    return [...sessoes]
-      .filter((sessao) => sessao.data && new Date(`${sessao.data}T12:00:00`) >= hoje)
-      .sort(
-        (a, b) =>
-          new Date(`${a.data}T12:00:00`).getTime() -
-          new Date(`${b.data}T12:00:00`).getTime()
-      )[0];
-  }, [sessoes]);
+    return lista;
+  }, [gestaoAtual, financeiro, secretaria]);
 
   if (!carregado) {
     return (
       <div className="mt-8 rounded-3xl border border-white/10 bg-white/[0.04] p-6 text-zinc-400">
-        Carregando painel...
+        Carregando painel da gestão...
       </div>
     );
   }
 
   return (
     <div className="mt-8 space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Obreiros ativos</p>
-          <h3 className="mt-3 text-3xl font-bold text-white">{obreirosDaLoja.length}</h3>
-          <p className="mt-2 text-sm text-zinc-500">Cadastro principal da Loja</p>
-        </article>
+      <section className="rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/15 to-white/[0.03] p-6">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-sm uppercase tracking-[0.25em] text-amber-300">Gestão atual</p>
+            <h3 className="mt-3 text-3xl font-bold text-white">
+              {gestaoAtual?.nomeGestao || "Nenhuma gestão atual definida"}
+            </h3>
 
-        <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Recebido no mês</p>
-          <h3 className="mt-3 text-3xl font-bold text-emerald-300">
-            {formatarMoeda(resumo.recebidoMes)}
-          </h3>
-          <p className="mt-2 text-sm text-zinc-500">{resumo.mesAtual}</p>
-        </article>
+            <p className="mt-2 text-sm text-zinc-300">
+              Repasse recebido de: {gestaoAtual?.gestaoAnteriorRepasse || "Não informado"}
+            </p>
 
-        <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Dívida vencida</p>
-          <h3 className="mt-3 text-3xl font-bold text-red-300">
-            {formatarMoeda(resumo.dividaTotal)}
-          </h3>
-          <p className="mt-2 text-sm text-zinc-500">
-            {resumo.mesesVencidos} mês(es) vencido(s) no ano
-          </p>
-        </article>
+            <p className="mt-1 text-sm text-zinc-400">
+              Período: {formatarDataBR(gestaoAtual?.dataInicioGestao || "")} até{" "}
+              {formatarDataBR(gestaoAtual?.dataFimGestao || "")}
+            </p>
+          </div>
 
-        <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Saldo atual</p>
-          <h3 className="mt-3 text-3xl font-bold text-amber-300">
-            {formatarMoeda(resumo.saldoAtual)}
-          </h3>
-          <p className="mt-2 text-sm text-zinc-500">Com saldo anterior e lançamentos</p>
-        </article>
-      </section>
-
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-3xl border border-red-400/20 bg-red-400/10 p-5">
-          <p className="text-sm text-red-200">Notificar Tesouraria</p>
-          <h3 className="mt-3 text-3xl font-bold text-red-300">
-            {resumo.notificarTesouraria}
-          </h3>
-          <p className="mt-2 text-sm text-red-200/80">Irmãos com 3 ou mais meses em aberto</p>
-        </article>
-
-        <article className="rounded-3xl border border-amber-400/20 bg-amber-400/10 p-5">
-          <p className="text-sm text-amber-200">Baixa frequência</p>
-          <h3 className="mt-3 text-3xl font-bold text-amber-300">
-            {resumo.baixaFrequencia}
-          </h3>
-          <p className="mt-2 text-sm text-amber-200/80">Alertas da Chancelaria</p>
-        </article>
-
-        <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Próxima sessão</p>
-          <h3 className="mt-3 text-xl font-bold text-white">
-            {proximaSessao ? formatarDataBR(proximaSessao.data) : "Não cadastrada"}
-          </h3>
-          <p className="mt-2 text-sm text-zinc-500">
-            {proximaSessao?.titulo || proximaSessao?.tipo || "Cadastre sessões na Chancelaria"}
-          </p>
-        </article>
-      </section>
-
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-        <h3 className="text-2xl font-bold">Resumo da Secretaria</h3>
-        <p className="mt-2 text-sm text-zinc-400">
-          Situação dos documentos, decisões, ações pendentes, processos e peças de arquitetura.
-        </p>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-          <article className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
-            <p className="text-sm text-amber-200">Documentos pendentes</p>
-            <h4 className="mt-2 text-3xl font-bold text-amber-300">
-              {resumoSecretaria.documentosPendentes.length}
-            </h4>
-            <p className="mt-1 text-xs text-amber-100/70">Rascunho ou revisão</p>
-          </article>
-
-          <article className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
-            <p className="text-sm text-emerald-200">Aprovados</p>
-            <h4 className="mt-2 text-3xl font-bold text-emerald-300">
-              {resumoSecretaria.documentosAprovados.length}
-            </h4>
-            <p className="mt-1 text-xs text-emerald-100/70">Atas e balaústres</p>
-          </article>
-
-          <article className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
-            <p className="text-sm text-red-200">Ações pendentes</p>
-            <h4 className="mt-2 text-3xl font-bold text-red-300">
-              {resumoSecretaria.acoesPendentes.length}
-            </h4>
-            <p className="mt-1 text-xs text-red-100/70">Providências abertas</p>
-          </article>
-
-          <article className="rounded-2xl border border-sky-400/20 bg-sky-400/10 p-4">
-            <p className="text-sm text-sky-200">Processos</p>
-            <h4 className="mt-2 text-3xl font-bold text-sky-300">
-              {resumoSecretaria.processosAbertos.length}
-            </h4>
-            <p className="mt-1 text-xs text-sky-100/70">Em andamento</p>
-          </article>
-
-          <article className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4">
-            <p className="text-sm text-violet-200">Peças previstas</p>
-            <h4 className="mt-2 text-3xl font-bold text-violet-300">
-              {resumoSecretaria.pecasPrevistas.length}
-            </h4>
-            <p className="mt-1 text-xs text-violet-100/70">Arquitetura</p>
-          </article>
-
-          <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
-            <p className="text-sm text-zinc-300">Decisões vigentes</p>
-            <h4 className="mt-2 text-3xl font-bold text-white">
-              {resumoSecretaria.decisoesVigentes.length}
-            </h4>
-            <p className="mt-1 text-xs text-zinc-500">Registro da Loja</p>
-          </article>
+          <Link
+            href="/prestacao-contas"
+            className="rounded-full bg-amber-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-amber-300"
+          >
+            Ver Prestação de Contas
+          </Link>
         </div>
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <h4 className="font-semibold text-white">Próximas ações da Secretaria</h4>
+        <div className="mt-6 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Venerável Mestre", gestaoAtual?.cargos?.veneravelMestre],
+            ["Secretário", gestaoAtual?.cargos?.secretario],
+            ["Tesoureiro", gestaoAtual?.cargos?.tesoureiro],
+            ["Chanceler", gestaoAtual?.cargos?.chanceler],
+          ].map(([cargo, nome]) => (
+            <div key={cargo} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-xs uppercase tracking-[0.18em] text-amber-300">{cargo}</p>
+              <p className="mt-2 font-semibold text-white">{nome || "Não informado"}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
-            <div className="mt-4 space-y-3">
-              {resumoSecretaria.acoesPendentes.slice(0, 5).map((acao) => (
-                <div key={acao.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-sm font-semibold text-white">{acao.titulo}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    Status: {acao.status} | Prazo: {formatarDataBR(acao.prazo)}
-                  </p>
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+        {[
+          ["Saldo inicial", financeiro.saldoInicial, "text-amber-300", "Recebido líquido"],
+          ["Entradas", financeiro.entradas, "text-emerald-300", "Gestão atual"],
+          ["Saídas", financeiro.saidas, "text-red-300", "Gestão atual"],
+          ["Saldo atual", financeiro.saldoAtual, "text-amber-300", "Caixa atual"],
+          ["A receber", financeiro.dividaObreiros, "text-emerald-300", "Obreiros"],
+          ["Saldo projetado", financeiro.saldoProjetado, financeiro.saldoProjetado >= 0 ? "text-emerald-300" : "text-red-300", "Repasse futuro"],
+        ].map(([titulo, valor, cor, detalhe]) => (
+          <article key={String(titulo)} className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+            <p className="text-sm text-zinc-400">{titulo}</p>
+            <h4 className={`mt-3 text-2xl font-bold ${cor}`}>
+              {formatarMoeda(Number(valor))}
+            </h4>
+            <p className="mt-2 text-xs text-zinc-500">{detalhe}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h3 className="text-2xl font-bold">Resumo Financeiro da Gestão</h3>
+          <p className="mt-2 text-sm text-zinc-400">
+            Visão rápida do caixa, custos, recebimentos e previsão de repasse.
+          </p>
+
+          <div className="mt-6 grid gap-4 md:grid-cols-2">
+            <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-5">
+              <p className="text-sm text-emerald-200">Receitas acumuladas</p>
+
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Mensalidades</span>
+                  <strong className="text-emerald-300">{formatarMoeda(financeiro.mensalidades)}</strong>
                 </div>
-              ))}
 
-              {resumoSecretaria.acoesPendentes.length === 0 && (
-                <p className="text-sm text-zinc-500">Nenhuma ação pendente.</p>
-              )}
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Tronco</span>
+                  <strong className="text-emerald-300">{formatarMoeda(financeiro.tronco)}</strong>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Receitas extras</span>
+                  <strong className="text-emerald-300">{formatarMoeda(financeiro.receitasExtras)}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
+              <p className="text-sm text-red-200">Despesas e obrigações</p>
+
+              <div className="mt-4 space-y-3 text-sm">
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Despesas avulsas</span>
+                  <strong className="text-red-300">{formatarMoeda(financeiro.despesasAvulsas)}</strong>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Custos pagos</span>
+                  <strong className="text-red-300">{formatarMoeda(financeiro.custosPagos)}</strong>
+                </div>
+
+                <div className="flex justify-between">
+                  <span className="text-zinc-300">Custos em aberto</span>
+                  <strong className="text-red-300">{formatarMoeda(financeiro.custosEmAberto)}</strong>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
-            <h4 className="font-semibold text-white">Últimas decisões registradas</h4>
+          <div className="mt-6 rounded-2xl border border-amber-400/20 bg-black/20 p-5">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm text-zinc-400">Resumo do caixa até o momento</p>
+                <h4 className="mt-2 text-2xl font-bold text-white">
+                  Saldo atual:{" "}
+                  <span className="text-amber-300">{formatarMoeda(financeiro.saldoAtual)}</span>
+                </h4>
+              </div>
 
-            <div className="mt-4 space-y-3">
-              {resumoSecretaria.decisoesVigentes.slice(0, 5).map((decisao) => (
-                <div key={decisao.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                  <p className="text-sm font-semibold text-white">{decisao.texto}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {formatarDataBR(decisao.data)} | {decisao.origem}
-                  </p>
-                </div>
-              ))}
-
-              {resumoSecretaria.decisoesVigentes.length === 0 && (
-                <p className="text-sm text-zinc-500">Nenhuma decisão registrada.</p>
-              )}
+              <div className="text-left md:text-right">
+                <p className="text-sm text-zinc-400">Saldo projetado para repasse</p>
+                <h4
+                  className={`mt-2 text-2xl font-bold ${
+                    financeiro.saldoProjetado >= 0 ? "text-emerald-300" : "text-red-300"
+                  }`}
+                >
+                  {formatarMoeda(financeiro.saldoProjetado)}
+                </h4>
+              </div>
             </div>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h3 className="text-2xl font-bold">Alertas</h3>
+          <p className="mt-2 text-sm text-zinc-400">O que precisa de atenção agora.</p>
+
+          <div className="mt-6 space-y-3">
+            {alertas.map((alerta) => (
+              <Link
+                key={alerta.titulo}
+                href={alerta.href}
+                className="block rounded-2xl border border-white/10 bg-black/20 p-4 transition hover:bg-white/[0.05]"
+              >
+                <p className="font-semibold text-white">{alerta.titulo}</p>
+                <p className="mt-1 text-sm text-zinc-400">{alerta.texto}</p>
+              </Link>
+            ))}
           </div>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-        <h3 className="text-2xl font-bold">Resumo Financeiro</h3>
-        <p className="mt-2 text-sm text-zinc-400">
-          Visão rápida da Tesouraria, com dívida vencida, total pago e score financeiro por irmão.
-        </p>
+      <section className="grid gap-6 xl:grid-cols-3">
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h3 className="text-xl font-bold">Tesouraria</h3>
 
-        <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
-          <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
-            <thead className="bg-white/[0.06] text-zinc-300">
-              <tr>
-                <th className="px-5 py-4">Obreiro</th>
-                <th className="px-5 py-4">Total pago</th>
-                <th className="px-5 py-4">Em aberto</th>
-                <th className="px-5 py-4">Meses em aberto</th>
-                <th className="px-5 py-4">Score</th>
-              </tr>
-            </thead>
+          <div className="mt-5 space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Obreiros com pendência</span>
+              <strong className="text-red-300">{inadimplentes.length}</strong>
+            </div>
 
-            <tbody>
-              {financeiroPorObreiro.slice(0, 12).map((item) => (
-                <tr key={item.obreiro.id} className="border-t border-white/10 hover:bg-white/[0.03]">
-                  <td className="px-5 py-4">
-                    <p className="font-semibold text-white">{item.obreiro.nome}</p>
-                    <p className="mt-1 text-xs text-zinc-500">
-                      {item.obreiro.grau} | {item.obreiro.cargo || "Sem cargo"}
-                    </p>
-                  </td>
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Total em aberto</span>
+              <strong className="text-red-300">{formatarMoeda(financeiro.dividaObreiros)}</strong>
+            </div>
 
-                  <td className="px-5 py-4 font-bold text-emerald-300">
-                    {formatarMoeda(item.totalPago)}
-                  </td>
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Custos vencidos</span>
+              <strong className="text-red-300">{formatarMoeda(financeiro.custosVencidos)}</strong>
+            </div>
+          </div>
 
-                  <td className="px-5 py-4 font-bold text-red-300">
-                    {formatarMoeda(item.totalEmAberto)}
-                  </td>
+          <div className="mt-5 space-y-2">
+            {inadimplentes.slice(0, 4).map((item) => (
+              <div key={item.obreiro.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-sm font-semibold text-white">{item.obreiro.nome}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {item.mesesEmAberto} mês(es) | {formatarMoeda(item.emAberto)}
+                </p>
+              </div>
+            ))}
 
-                  <td className="px-5 py-4 text-zinc-300">{item.mesesEmAberto}</td>
+            {inadimplentes.length === 0 && (
+              <p className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-500">
+                Nenhuma pendência financeira vencida.
+              </p>
+            )}
+          </div>
+        </div>
 
-                  <td className="px-5 py-4">
-                    <div className={`w-fit rounded-2xl border px-4 py-2 ${item.score.classe}`}>
-                      <p className="text-xs font-bold">{item.score.texto}</p>
-                      <p className="mt-1 text-[11px]">{item.score.detalhe}</p>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h3 className="text-xl font-bold">Chancelaria</h3>
 
-              {financeiroPorObreiro.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-6 text-center text-zinc-500">
-                    Nenhum obreiro ativo encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+          <div className="mt-5 space-y-4">
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Sessões na gestão</span>
+              <strong className="text-white">{chancelaria.sessoesGestao.length}</strong>
+            </div>
+
+            <div className="flex justify-between text-sm">
+              <span className="text-zinc-400">Baixa frequência</span>
+              <strong className="text-red-300">{chancelaria.baixaFrequencia.length}</strong>
+            </div>
+
+            <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+              <p className="text-xs text-zinc-500">Próxima sessão</p>
+              <p className="mt-1 text-sm font-semibold text-white">
+                {chancelaria.proximaSessao
+                  ? `${formatarDataBR(chancelaria.proximaSessao.data)} - ${
+                      chancelaria.proximaSessao.titulo || chancelaria.proximaSessao.tipo || "Sessão"
+                    }`
+                  : "Nenhuma sessão futura cadastrada"}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {chancelaria.baixaFrequencia.slice(0, 4).map((item) => (
+              <div key={item.obreiro.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-sm font-semibold text-white">{item.obreiro.nome}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  Frequência: {item.frequencia.toFixed(0)}% | Faltas: {item.faltas}
+                </p>
+              </div>
+            ))}
+
+            {chancelaria.baixaFrequencia.length === 0 && (
+              <p className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-500">
+                Nenhum alerta grave de frequência.
+              </p>
+            )}
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+          <h3 className="text-xl font-bold">Secretaria</h3>
+
+          <div className="mt-5 grid grid-cols-2 gap-3">
+            {[
+              ["Pendentes", secretaria.documentosPendentes.length],
+              ["Aprovados", secretaria.documentosAprovados.length],
+              ["Ações", secretaria.acoesPendentes.length],
+              ["Processos", secretaria.processosAbertos.length],
+              ["Peças", secretaria.pecasPrevistas.length],
+              ["Decisões", secretaria.decisoesVigentes.length],
+            ].map(([titulo, valor]) => (
+              <div key={String(titulo)} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-xs text-zinc-500">{titulo}</p>
+                <p className="mt-1 text-xl font-bold text-white">{valor}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 space-y-2">
+            {secretaria.acoesPendentes.slice(0, 3).map((acao) => (
+              <div key={acao.id} className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <p className="text-sm font-semibold text-white">{acao.titulo}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {acao.status} | Prazo: {formatarDataBR(acao.prazo)}
+                </p>
+              </div>
+            ))}
+
+            {secretaria.acoesPendentes.length === 0 && (
+              <p className="rounded-xl border border-white/10 bg-black/20 p-3 text-sm text-zinc-500">
+                Nenhuma ação pendente.
+              </p>
+            )}
+          </div>
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-        <h3 className="text-2xl font-bold">Resumo da Chancelaria</h3>
-        <p className="mt-2 text-sm text-zinc-400">
-          Frequência dos irmãos considerando as sessões registradas nos últimos 12 meses.
-        </p>
+      <section className="grid gap-4 md:grid-cols-4">
+        <Link
+          href="/configuracoes"
+          className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.08]"
+        >
+          <p className="font-bold text-white">Cadastro de Gestão</p>
+          <p className="mt-2 text-sm text-zinc-500">Gestão, repasse e diretoria.</p>
+        </Link>
 
-        <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
-          <table className="w-full min-w-[900px] border-collapse text-left text-sm">
-            <thead className="bg-white/[0.06] text-zinc-300">
-              <tr>
-                <th className="px-5 py-4">Obreiro</th>
-                <th className="px-5 py-4">Presenças</th>
-                <th className="px-5 py-4">Faltas</th>
-                <th className="px-5 py-4">Frequência</th>
-                <th className="px-5 py-4">Situação</th>
-              </tr>
-            </thead>
+        <Link
+          href="/tesouraria"
+          className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.08]"
+        >
+          <p className="font-bold text-white">Tesouraria</p>
+          <p className="mt-2 text-sm text-zinc-500">Mensalidades, custos e saldo.</p>
+        </Link>
 
-            <tbody>
-              {chancelariaPorObreiro
-                .sort((a, b) => a.percentual - b.percentual)
-                .slice(0, 12)
-                .map((item) => (
-                  <tr key={item.obreiro.id} className="border-t border-white/10 hover:bg-white/[0.03]">
-                    <td className="px-5 py-4">
-                      <p className="font-semibold text-white">{item.obreiro.nome}</p>
-                      <p className="mt-1 text-xs text-zinc-500">
-                        {item.obreiro.grau} | {item.obreiro.cargo || "Sem cargo"}
-                      </p>
-                    </td>
+        <Link
+          href="/chancelaria"
+          className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.08]"
+        >
+          <p className="font-bold text-white">Chancelaria</p>
+          <p className="mt-2 text-sm text-zinc-500">Sessões, cargos e frequência.</p>
+        </Link>
 
-                    <td className="px-5 py-4 text-emerald-300">{item.presentes}</td>
-                    <td className="px-5 py-4 text-red-300">{item.faltas}</td>
-                    <td className="px-5 py-4 font-bold text-white">{item.percentual}%</td>
-
-                    <td className="px-5 py-4">
-                      <div className={`w-fit rounded-2xl border px-4 py-2 ${item.status.classe}`}>
-                        <p className="text-xs font-bold">{item.status.texto}</p>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-
-              {chancelariaPorObreiro.length === 0 && (
-                <tr>
-                  <td colSpan={5} className="px-5 py-6 text-center text-zinc-500">
-                    Nenhum dado de frequência encontrado.
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
+        <Link
+          href="/secretaria"
+          className="rounded-2xl border border-white/10 bg-white/[0.04] p-5 transition hover:bg-white/[0.08]"
+        >
+          <p className="font-bold text-white">Secretaria</p>
+          <p className="mt-2 text-sm text-zinc-500">Atas, decisões e processos.</p>
+        </Link>
       </section>
     </div>
   );

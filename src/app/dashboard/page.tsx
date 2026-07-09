@@ -4,9 +4,9 @@ import { DashboardClient } from "@/components/DashboardClient";
 export default function DashboardPage() {
   return (
     <AppShell
-      secao="Dashboard"
-      titulo="Visão Geral da Loja"
-      subtitulo="Indicadores integrados de Obreiros, Tesouraria, Chancelaria, sessões, frequência e saldo geral."
+      secao="Painel da Gestão"
+      titulo="Dashboard da Gestão"
+      subtitulo="Visão geral da Loja com caixa, repasse, diretoria, tesouraria, chancelaria, secretaria e alertas importantes."
     >
       <DashboardClient />
     </AppShell>
