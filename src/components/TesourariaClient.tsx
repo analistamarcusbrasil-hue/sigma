@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
 import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
+import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -192,12 +193,25 @@ export function TesourariaClient() {
   const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
   const [novoCusto, setNovoCusto] = useState(custoVazio);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
+  const [gestaoAtiva, setGestaoAtiva] = useState(() => obterGestaoAtualDoStorage());
   const [carregado, setCarregado] = useState(false);
 
+  const mesesCobraveis = useMemo(() => {
+    return mesesDoAno.filter((mes) => mesCobravelNaGestao(mes.id, gestaoAtiva));
+  }, [mesesDoAno, gestaoAtiva]);
+
+  const mesesParaSelecionar = mesesCobraveis.length > 0 ? mesesCobraveis : mesesDoAno;
+
   useEffect(() => {
-    const anoSalvo = Number(localStorage.getItem("sigma_ano_trabalho") ?? anoAtualSistema());
+    const gestaoSalva = obterGestaoAtualDoStorage();
+    const anoSalvo = gestaoSalva.anoTrabalho || Number(localStorage.getItem("sigma_ano_trabalho") ?? anoAtualSistema());
+    const mesesValidos = gerarMesesDoAno(anoSalvo).filter((mes) =>
+      mesCobravelNaGestao(mes.id, gestaoSalva)
+    );
+
+    setGestaoAtiva(gestaoSalva);
     setAnoTrabalho(anoSalvo);
-    setMesSelecionado(mesAtualDoSistemaNoAno(anoSalvo));
+    setMesSelecionado(mesesValidos[0]?.id ?? mesAtualDoSistemaNoAno(anoSalvo));
 
     setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
 
@@ -209,7 +223,7 @@ export function TesourariaClient() {
     setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
     setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
     setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
-    setSaldoAnterior(Number(localStorage.getItem("sigma_saldo_anterior") ?? 0));
+    setSaldoAnterior(gestaoSalva.saldoLiquidoInicial);
     setCarregado(true);
   }, []);
 
@@ -254,11 +268,15 @@ export function TesourariaClient() {
   }
 
   function valorTotalAno() {
-    return mesesDoAno.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
+    return mesesCobraveis.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
   }
 
   function nomeMes(mesId: string) {
-    return mesesDoAno.find((mes) => mes.id === mesId)?.nome ?? mesId;
+    return (
+      mesesCobraveis.find((mes) => mes.id === mesId)?.nome ??
+      mesesDoAno.find((mes) => mes.id === mesId)?.nome ??
+      mesId
+    );
   }
 
   function hojeDoSistema() {
@@ -305,7 +323,7 @@ export function TesourariaClient() {
     const totalPago = totalPagoAcumuladoObreiro(obreiroId);
     let saldoPago = totalPago;
 
-    const meses = mesesDoAno.map((mes) => {
+    const meses = mesesCobraveis.map((mes) => {
       const valorDevido = valorVigenteDoMes(mes.id);
       const valorPago = Math.min(valorDevido, Math.max(saldoPago, 0));
 
@@ -852,8 +870,12 @@ export function TesourariaClient() {
               value={anoTrabalho}
               onChange={(evento) => {
                 const novoAno = Number(evento.target.value);
+                const mesesValidos = gerarMesesDoAno(novoAno).filter((mes) =>
+                  mesCobravelNaGestao(mes.id, gestaoAtiva)
+                );
+
                 setAnoTrabalho(novoAno);
-                setMesSelecionado(mesAtualDoSistemaNoAno(novoAno));
+                setMesSelecionado(mesesValidos[0]?.id ?? mesAtualDoSistemaNoAno(novoAno));
               }}
               className="w-32 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               placeholder="Ano"
@@ -864,7 +886,7 @@ export function TesourariaClient() {
               onChange={(evento) => setMesSelecionado(evento.target.value)}
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             >
-              {mesesDoAno.map((mes) => (
+              {mesesParaSelecionar.map((mes) => (
                 <option key={mes.id} value={mes.id}>
                   {mes.nome}
                 </option>
@@ -1269,13 +1291,13 @@ export function TesourariaClient() {
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
           <h3 className="text-2xl font-bold">Saldo da Gestão</h3>
           <p className="mt-2 text-sm text-zinc-400">
-            Informe o saldo recebido da gestão anterior.
+            Saldo líquido inicial vindo do Cadastro de Gestão. Para alterar, edite a gestão atual.
           </p>
 
           <input
             type="number"
             value={saldoAnterior}
-            onChange={(evento) => setSaldoAnterior(Number(evento.target.value))}
+            readOnly
             className="mt-6 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
           />
 
