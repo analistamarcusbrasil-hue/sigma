@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
 import type { Obreiro, RegistroPresenca, StatusPresenca } from "@/types";
 
 type Sessao = {
   id: string;
   data: string;
+  tipo: string;
+  grau: string;
   titulo: string;
+  observacao: string;
 };
+
+type FiltroStatus = "Todos" | StatusPresenca;
 
 const statusOpcoes: StatusPresenca[] = [
   "Não marcado",
@@ -17,39 +22,104 @@ const statusOpcoes: StatusPresenca[] = [
   "Justificado",
 ];
 
-function gerarSessoes2026(): Sessao[] {
-  const sessoes: Sessao[] = [];
+const filtrosStatus: FiltroStatus[] = [
+  "Todos",
+  "Não marcado",
+  "Presente",
+  "Falta",
+  "Justificado",
+];
 
-  for (let mes = 0; mes < 12; mes++) {
-    const sabados: Date[] = [];
+const tiposSessao = [
+  "Sessão Ordinária",
+  "Sessão Administrativa",
+  "Sessão Magna de Iniciação",
+  "Sessão Magna de Elevação",
+  "Sessão Magna de Exaltação",
+  "Sessão de Instrução",
+  "Sessão Especial",
+];
 
-    for (let dia = 1; dia <= 31; dia++) {
-      const data = new Date(2026, mes, dia);
+const grausSessao = [
+  "Aprendiz Maçom",
+  "Companheiro Maçom",
+  "Mestre Maçom",
+  "Administrativa / Sem Grau",
+];
 
-      if (data.getMonth() !== mes) {
-        break;
-      }
+const cargosSessao = [
+  "Sem cargo em sessão",
+  "Venerável Mestre",
+  "1º Vigilante",
+  "2º Vigilante",
+  "Orador",
+  "Secretário",
+  "Tesoureiro",
+  "Chanceler",
+  "Mestre de Cerimônias",
+  "Hospitaleiro",
+  "Guarda do Templo",
+  "Cobridor",
+  "Mestre de Harmonia",
+  "Arquiteto",
+  "Porta-Estandarte",
+  "Experto",
+  "Visitante",
+];
 
-      if (data.getDay() === 6) {
-        sabados.push(data);
-      }
-    }
+const visitanteVazio: Obreiro = {
+  id: "",
+  nome: "",
+  grau: "Mestre Maçom",
+  cargo: "Visitante",
+  telefone: "",
+  email: "",
+  situacao: "Ativo",
+  tipo: "Visitante",
+  lojaOrigem: "",
+};
 
-    const sessoesDoMes = [sabados[0], sabados[2]].filter(Boolean);
+const sessaoVazia = {
+  data: "",
+  tipo: "Sessão Ordinária",
+  grau: "Aprendiz Maçom",
+  titulo: "",
+  observacao: "",
+};
 
-    sessoesDoMes.forEach((data, index) => {
-      const dataFormatada = data.toLocaleDateString("pt-BR");
-      const numeroSessao = index === 0 ? "1º sábado" : "3º sábado";
+function gerarId() {
+  return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
+}
 
-      sessoes.push({
-        id: dataFormatada,
-        data: dataFormatada,
-        titulo: `${dataFormatada} - ${numeroSessao}`,
-      });
-    });
-  }
+function formatarDataBR(dataISO: string) {
+  if (!dataISO) return "";
+  const [ano, mes, dia] = dataISO.split("-");
+  return `${dia}/${mes}/${ano}`;
+}
 
-  return sessoes;
+function parseDataISO(dataISO: string) {
+  return new Date(`${dataISO}T12:00:00`);
+}
+
+function normalizarObreiros(lista: Obreiro[]) {
+  return lista.map((obreiro) => ({
+    ...obreiro,
+    tipo: obreiro.tipo ?? "Obreiro da Loja",
+    lojaOrigem: obreiro.lojaOrigem ?? "",
+  }));
+}
+
+function normalizarSessoes(lista: Sessao[]) {
+  return lista
+    .filter((sessao) => sessao.id && sessao.data)
+    .map((sessao) => ({
+      id: sessao.id,
+      data: sessao.data,
+      tipo: sessao.tipo || "Sessão Ordinária",
+      grau: sessao.grau || "Aprendiz Maçom",
+      titulo: sessao.titulo || `${formatarDataBR(sessao.data)} - Sessão`,
+      observacao: sessao.observacao || "",
+    }));
 }
 
 function classeStatus(status: StatusPresenca) {
@@ -68,23 +138,52 @@ function classeStatus(status: StatusPresenca) {
   return "border-white/10 bg-black/30 text-zinc-300";
 }
 
+function baixarArquivo(nomeArquivo: string, conteudo: string) {
+  const blob = new Blob([conteudo], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+
+  link.href = url;
+  link.download = nomeArquivo;
+  link.click();
+
+  URL.revokeObjectURL(url);
+}
+
 export function ChancelariaClient() {
-  const sessoes = useMemo(() => gerarSessoes2026(), []);
-  const [sessaoSelecionada, setSessaoSelecionada] = useState(sessoes[0]?.id ?? "");
-  const [obreiros, setObreiros] = useState<Obreiro[]>(obreirosBase);
+  const [sessoes, setSessoes] = useState<Sessao[]>([]);
+  const [sessaoSelecionada, setSessaoSelecionada] = useState("");
+  const [novaSessao, setNovaSessao] = useState(sessaoVazia);
+  const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
   const [carregado, setCarregado] = useState(false);
+  const [busca, setBusca] = useState("");
+  const [filtroStatus, setFiltroStatus] = useState<FiltroStatus>("Todos");
+  const [aba, setAba] = useState<"chamada" | "relatorio">("chamada");
+  const [somenteAtivos, setSomenteAtivos] = useState(true);
+  const [visitante, setVisitante] = useState<Obreiro>(visitanteVazio);
 
   useEffect(() => {
     const obreirosSalvos = localStorage.getItem("sigma_obreiros");
     const presencasSalvas = localStorage.getItem("sigma_presencas");
+    const sessoesSalvas = localStorage.getItem("sigma_sessoes");
 
     if (obreirosSalvos) {
-      setObreiros(JSON.parse(obreirosSalvos));
+      setObreiros(normalizarObreiros(JSON.parse(obreirosSalvos)));
     }
 
     if (presencasSalvas) {
       setPresencas(JSON.parse(presencasSalvas));
+    }
+
+    if (sessoesSalvas) {
+      const sessoesCarregadas = normalizarSessoes(JSON.parse(sessoesSalvas));
+      const ordenadas = [...sessoesCarregadas].sort(
+        (a, b) => parseDataISO(a.data).getTime() - parseDataISO(b.data).getTime()
+      );
+
+      setSessoes(ordenadas);
+      setSessaoSelecionada(ordenadas.at(-1)?.id ?? "");
     }
 
     setCarregado(true);
@@ -92,23 +191,231 @@ export function ChancelariaClient() {
 
   useEffect(() => {
     if (carregado) {
+      localStorage.setItem("sigma_obreiros", JSON.stringify(obreiros));
+    }
+  }, [obreiros, carregado]);
+
+  useEffect(() => {
+    if (carregado) {
       localStorage.setItem("sigma_presencas", JSON.stringify(presencas));
     }
   }, [presencas, carregado]);
 
-  const obreirosOrdenados = useMemo(() => {
-    return [...obreiros].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
-  }, [obreiros]);
+  useEffect(() => {
+    if (carregado) {
+      localStorage.setItem("sigma_sessoes", JSON.stringify(sessoes));
+    }
+  }, [sessoes, carregado]);
 
-  function buscarStatus(obreiroId: string): StatusPresenca {
-    const registro = presencas.find(
-      (item) => item.sessaoId === sessaoSelecionada && item.obreiroId === obreiroId
+  const sessoesOrdenadas = useMemo(() => {
+    return [...sessoes].sort(
+      (a, b) => parseDataISO(a.data).getTime() - parseDataISO(b.data).getTime()
     );
+  }, [sessoes]);
 
-    return registro?.status ?? "Não marcado";
+  const sessoesExibicao = useMemo(() => {
+    return [...sessoesOrdenadas].reverse();
+  }, [sessoesOrdenadas]);
+
+  const sessaoAtual = useMemo(() => {
+    return sessoes.find((sessao) => sessao.id === sessaoSelecionada);
+  }, [sessoes, sessaoSelecionada]);
+
+  const sessoesPeriodoRegularidade = useMemo(() => {
+    if (!sessaoAtual) return [];
+
+    const dataFinal = parseDataISO(sessaoAtual.data);
+    const dataInicial = new Date(dataFinal);
+    dataInicial.setMonth(dataInicial.getMonth() - 12);
+
+    return sessoesOrdenadas.filter((sessao) => {
+      const dataSessao = parseDataISO(sessao.data);
+      return dataSessao >= dataInicial && dataSessao <= dataFinal;
+    });
+  }, [sessoesOrdenadas, sessaoAtual]);
+
+  function buscarRegistro(sessaoId: string, obreiroId: string) {
+    return presencas.find(
+      (item) => item.sessaoId === sessaoId && item.obreiroId === obreiroId
+    );
   }
 
-  function atualizarPresenca(obreiroId: string, status: StatusPresenca) {
+  function buscarStatus(obreiroId: string): StatusPresenca {
+    if (!sessaoSelecionada) return "Não marcado";
+    return buscarRegistro(sessaoSelecionada, obreiroId)?.status ?? "Não marcado";
+  }
+
+  function buscarObservacao(obreiroId: string) {
+    if (!sessaoSelecionada) return "";
+    return buscarRegistro(sessaoSelecionada, obreiroId)?.observacao ?? "";
+  }
+
+  function cargoPadraoSessao(obreiro?: Obreiro) {
+    if (!obreiro) return "Sem cargo em sessão";
+    if (obreiro.tipo === "Visitante") return "Visitante";
+    return obreiro.cargo || "Sem cargo em sessão";
+  }
+
+  function buscarCargoSessao(obreiro: Obreiro) {
+    if (!sessaoSelecionada) return cargoPadraoSessao(obreiro);
+
+    return (
+      buscarRegistro(sessaoSelecionada, obreiro.id)?.cargoSessao ??
+      cargoPadraoSessao(obreiro)
+    );
+  }
+
+  const obreirosDaChamada = useMemo(() => {
+    return [...obreiros]
+      .filter((obreiro) => {
+        if (obreiro.tipo === "Visitante") {
+          return Boolean(sessaoSelecionada && buscarRegistro(sessaoSelecionada, obreiro.id));
+        }
+
+        if (!somenteAtivos) return true;
+        return obreiro.situacao === "Ativo";
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [obreiros, somenteAtivos, presencas, sessaoSelecionada]);
+
+  const relatorioObreiros = useMemo(() => {
+    return [...obreiros]
+      .filter((obreiro) => obreiro.tipo !== "Visitante")
+      .filter((obreiro) => {
+        if (!somenteAtivos) return true;
+        return obreiro.situacao === "Ativo";
+      })
+      .sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"))
+      .map((obreiro) => {
+        const registrosPeriodo = sessoesPeriodoRegularidade.map((sessao) => {
+          return buscarRegistro(sessao.id, obreiro.id)?.status ?? "Não marcado";
+        });
+
+        const presentes = registrosPeriodo.filter((status) => status === "Presente").length;
+        const faltas = registrosPeriodo.filter((status) => status === "Falta").length;
+        const justificados = registrosPeriodo.filter((status) => status === "Justificado").length;
+        const naoMarcados = registrosPeriodo.filter((status) => status === "Não marcado").length;
+
+        const sessoesComputadas = presentes + faltas;
+        const percentual =
+          sessoesComputadas > 0 ? Math.round((presentes / sessoesComputadas) * 100) : 0;
+
+        const alerta = sessoesComputadas > 0 && faltas > 0 && percentual < 50;
+
+        return {
+          obreiro,
+          presentes,
+          faltas,
+          justificados,
+          naoMarcados,
+          marcados: sessoesComputadas,
+          percentual,
+          alerta,
+        };
+      });
+  }, [obreiros, somenteAtivos, sessoesPeriodoRegularidade, presencas]);
+
+  function buscarScoreObreiro(obreiro: Obreiro) {
+    if (obreiro.tipo === "Visitante") {
+      return {
+        valor: "VIS",
+        situacao: "Visitante",
+        classe: "border-sky-400/30 bg-sky-400/10 text-sky-300",
+      };
+    }
+
+    const dados = relatorioObreiros.find((item) => item.obreiro.id === obreiro.id);
+
+    if (!dados || dados.marcados === 0) {
+      return {
+        valor: "--",
+        situacao: "Sem histórico",
+        classe: "border-white/10 bg-black/30 text-zinc-300",
+      };
+    }
+
+    if (dados.alerta || dados.percentual < 50) {
+      return {
+        valor: `${dados.percentual}%`,
+        situacao: "Notificar",
+        classe: "border-red-400/30 bg-red-400/10 text-red-300",
+      };
+    }
+
+    if (dados.percentual >= 90) {
+      return {
+        valor: `${dados.percentual}%`,
+        situacao: "Excelente",
+        classe: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+      };
+    }
+
+    if (dados.percentual >= 75) {
+      return {
+        valor: `${dados.percentual}%`,
+        situacao: "Bom",
+        classe: "border-emerald-400/30 bg-emerald-400/10 text-emerald-300",
+      };
+    }
+
+    return {
+      valor: `${dados.percentual}%`,
+      situacao: "Regular",
+      classe: "border-amber-400/30 bg-amber-400/10 text-amber-300",
+    };
+  }
+
+  function cadastrarSessao(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    if (!novaSessao.data) {
+      alert("Informe a data da sessão.");
+      return;
+    }
+
+    const nova: Sessao = {
+      id: gerarId(),
+      data: novaSessao.data,
+      tipo: novaSessao.tipo,
+      grau: novaSessao.grau,
+      titulo:
+        novaSessao.titulo.trim() ||
+        `${formatarDataBR(novaSessao.data)} - ${novaSessao.tipo}`,
+      observacao: novaSessao.observacao.trim(),
+    };
+
+    setSessoes((atuais) => [...atuais, nova]);
+    setSessaoSelecionada(nova.id);
+    setNovaSessao(sessaoVazia);
+  }
+
+  function removerSessao() {
+    if (!sessaoAtual) return;
+
+    const confirmar = confirm(
+      `Deseja remover a sessão "${sessaoAtual.titulo}"? Os registros de presença dela também serão removidos.`
+    );
+
+    if (!confirmar) return;
+
+    const restantes = sessoesOrdenadas.filter((sessao) => sessao.id !== sessaoAtual.id);
+
+    setSessoes(restantes);
+    setPresencas((atuais) => atuais.filter((item) => item.sessaoId !== sessaoAtual.id));
+    setSessaoSelecionada(restantes.at(-1)?.id ?? "");
+  }
+
+  function atualizarRegistro(
+    obreiroId: string,
+    dados: Partial<Pick<RegistroPresenca, "status" | "observacao" | "cargoSessao">>
+  ) {
+    if (!sessaoSelecionada) {
+      alert("Cadastre ou selecione uma sessão antes de registrar presença.");
+      return;
+    }
+
+    const obreiro = obreiros.find((item) => item.id === obreiroId);
+
     setPresencas((atuais) => {
       const existe = atuais.some(
         (item) => item.sessaoId === sessaoSelecionada && item.obreiroId === obreiroId
@@ -120,17 +427,16 @@ export function ChancelariaClient() {
           {
             sessaoId: sessaoSelecionada,
             obreiroId,
-            status,
+            status: dados.status ?? "Não marcado",
+            observacao: dados.observacao ?? "",
+            cargoSessao: dados.cargoSessao ?? cargoPadraoSessao(obreiro),
           },
         ];
       }
 
       return atuais.map((item) => {
         if (item.sessaoId === sessaoSelecionada && item.obreiroId === obreiroId) {
-          return {
-            ...item,
-            status,
-          };
+          return { ...item, ...dados };
         }
 
         return item;
@@ -139,10 +445,17 @@ export function ChancelariaClient() {
   }
 
   function marcarTodos(status: StatusPresenca) {
-    const registrosDaSessao = obreirosOrdenados.map((obreiro) => ({
+    if (!sessaoSelecionada) {
+      alert("Cadastre ou selecione uma sessão antes de fazer a chamada.");
+      return;
+    }
+
+    const registrosDaSessao = obreirosDaChamada.map((obreiro) => ({
       sessaoId: sessaoSelecionada,
       obreiroId: obreiro.id,
       status,
+      observacao: status === "Não marcado" ? "" : buscarObservacao(obreiro.id),
+      cargoSessao: buscarCargoSessao(obreiro),
     }));
 
     setPresencas((atuais) => {
@@ -151,36 +464,216 @@ export function ChancelariaClient() {
     });
   }
 
+  function copiarSessaoAnterior() {
+    if (!sessaoAtual) {
+      alert("Cadastre ou selecione uma sessão primeiro.");
+      return;
+    }
+
+    const indiceAtual = sessoesOrdenadas.findIndex((sessao) => sessao.id === sessaoAtual.id);
+    const sessaoAnterior = sessoesOrdenadas[indiceAtual - 1];
+
+    if (!sessaoAnterior) {
+      alert("Não existe sessão anterior para copiar.");
+      return;
+    }
+
+    const registrosAnteriores = presencas.filter(
+      (item) => item.sessaoId === sessaoAnterior.id
+    );
+
+    if (registrosAnteriores.length === 0) {
+      alert("A sessão anterior ainda não possui registros.");
+      return;
+    }
+
+    const novosRegistros = registrosAnteriores.map((item) => ({
+      ...item,
+      sessaoId: sessaoAtual.id,
+    }));
+
+    setPresencas((atuais) => {
+      const outrasSessoes = atuais.filter((item) => item.sessaoId !== sessaoAtual.id);
+      return [...outrasSessoes, ...novosRegistros];
+    });
+  }
+
+  function cadastrarVisitante() {
+    if (!sessaoSelecionada) {
+      alert("Selecione uma sessão antes de cadastrar visitante.");
+      return;
+    }
+
+    if (!visitante.nome.trim()) {
+      alert("Informe pelo menos o nome do visitante.");
+      return;
+    }
+
+    const novoVisitante: Obreiro = {
+      ...visitante,
+      id: gerarId(),
+      nome: visitante.nome.trim(),
+      cargo: "Visitante",
+      situacao: "Ativo",
+      tipo: "Visitante",
+      lojaOrigem: visitante.lojaOrigem?.trim() ?? "",
+    };
+
+    setObreiros((atuais) => [...atuais, novoVisitante]);
+
+    setPresencas((atuais) => [
+      ...atuais,
+      {
+        sessaoId: sessaoSelecionada,
+        obreiroId: novoVisitante.id,
+        status: "Presente",
+        cargoSessao: "Visitante",
+        observacao: novoVisitante.lojaOrigem
+          ? `Visitante da Loja ${novoVisitante.lojaOrigem}`
+          : "Visitante cadastrado em sessão",
+      },
+    ]);
+
+    setVisitante(visitanteVazio);
+  }
+
+  const obreirosFiltrados = useMemo(() => {
+    return obreirosDaChamada.filter((obreiro) => {
+      const status = buscarStatus(obreiro.id);
+      const nomeConfere = obreiro.nome.toLowerCase().includes(busca.toLowerCase());
+      const statusConfere = filtroStatus === "Todos" || status === filtroStatus;
+
+      return nomeConfere && statusConfere;
+    });
+  }, [obreirosDaChamada, busca, filtroStatus, presencas, sessaoSelecionada]);
+
   const resumoSessao = useMemo(() => {
-    const registros = obreirosOrdenados.map((obreiro) => buscarStatus(obreiro.id));
+    const registros = obreirosDaChamada.map((obreiro) => buscarStatus(obreiro.id));
 
     return {
+      total: obreirosDaChamada.length,
+      visitantes: obreirosDaChamada.filter((obreiro) => obreiro.tipo === "Visitante").length,
       presentes: registros.filter((status) => status === "Presente").length,
       faltas: registros.filter((status) => status === "Falta").length,
       justificados: registros.filter((status) => status === "Justificado").length,
-      naoMarcados: registros.filter((status) => status === "Não marcado").length,
-      total: obreirosOrdenados.length,
     };
-  }, [obreirosOrdenados, presencas, sessaoSelecionada]);
+  }, [obreirosDaChamada, presencas, sessaoSelecionada]);
 
   const percentualPresenca =
     resumoSessao.total > 0
       ? Math.round((resumoSessao.presentes / resumoSessao.total) * 100)
       : 0;
 
+  const obreirosEmAtencao = relatorioObreiros.filter((item) => item.alerta);
+
+  function exportarSessaoCSV() {
+    if (!sessaoAtual) {
+      alert("Selecione uma sessão para exportar.");
+      return;
+    }
+
+    const linhas = [
+      [
+        "Data",
+        "Tipo da sessão",
+        "Grau da sessão",
+        "Título",
+        "Nome",
+        "Tipo do irmão",
+        "Loja de origem",
+        "Grau do irmão",
+        "Cargo cadastral",
+        "Cargo ocupado em sessão",
+        "Status",
+        "Observação",
+        "Score",
+        "Situação",
+      ],
+      ...obreirosDaChamada.map((obreiro) => {
+        const score = buscarScoreObreiro(obreiro);
+
+        return [
+          formatarDataBR(sessaoAtual.data),
+          sessaoAtual.tipo,
+          sessaoAtual.grau,
+          sessaoAtual.titulo,
+          obreiro.nome,
+          obreiro.tipo ?? "Obreiro da Loja",
+          obreiro.lojaOrigem ?? "",
+          obreiro.grau,
+          obreiro.cargo || "",
+          buscarCargoSessao(obreiro),
+          buscarStatus(obreiro.id),
+          buscarObservacao(obreiro.id),
+          score.valor,
+          score.situacao,
+        ];
+      }),
+    ];
+
+    const csv = linhas
+      .map((linha) =>
+        linha.map((campo) => `"${String(campo).replaceAll('"', '""')}"`).join(";")
+      )
+      .join("\n");
+
+    baixarArquivo(`presenca-${formatarDataBR(sessaoAtual.data).replaceAll("/", "-")}.csv`, csv);
+  }
+
+  function exportarRelatorioCSV() {
+    const linhas = [
+      [
+        "Nome",
+        "Grau",
+        "Cargo cadastral",
+        "Presentes",
+        "Faltas sem justificativa",
+        "Faltas justificadas",
+        "Sessões computadas",
+        "Frequência",
+        "Status",
+      ],
+      ...relatorioObreiros.map((item) => [
+        item.obreiro.nome,
+        item.obreiro.grau,
+        item.obreiro.cargo || "",
+        item.presentes,
+        item.faltas,
+        item.justificados,
+        item.marcados,
+        `${item.percentual}%`,
+        item.alerta ? "Notificar" : "Regular",
+      ]),
+    ];
+
+    const csv = linhas
+      .map((linha) =>
+        linha.map((campo) => `"${String(campo).replaceAll('"', '""')}"`).join(";")
+      )
+      .join("\n");
+
+    baixarArquivo("relatorio-frequencia-12-meses.csv", csv);
+  }
+
   return (
     <div className="mt-8 space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Obreiros</p>
-          <h3 className="mt-3 text-3xl font-bold text-amber-300">{resumoSessao.total}</h3>
-          <p className="mt-2 text-sm text-zinc-500">Cadastrados</p>
+          <p className="text-sm text-zinc-400">Sessões</p>
+          <h3 className="mt-3 text-3xl font-bold text-amber-300">{sessoes.length}</h3>
+          <p className="mt-2 text-sm text-zinc-500">Cadastradas</p>
+        </article>
+
+        <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <p className="text-sm text-zinc-400">Visitantes</p>
+          <h3 className="mt-3 text-3xl font-bold text-sky-300">{resumoSessao.visitantes}</h3>
+          <p className="mt-2 text-sm text-zinc-500">Na sessão</p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Presentes</p>
           <h3 className="mt-3 text-3xl font-bold text-emerald-300">{resumoSessao.presentes}</h3>
-          <p className="mt-2 text-sm text-zinc-500">Na sessão selecionada</p>
+          <p className="mt-2 text-sm text-zinc-500">Na sessão</p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
@@ -198,95 +691,436 @@ export function ChancelariaClient() {
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Frequência</p>
           <h3 className="mt-3 text-3xl font-bold text-amber-300">{percentualPresenca}%</h3>
-          <p className="mt-2 text-sm text-zinc-500">Presença real da sessão</p>
+          <p className="mt-2 text-sm text-zinc-500">Da sessão</p>
         </article>
       </section>
+
+      <form
+        onSubmit={cadastrarSessao}
+        className="rounded-3xl border border-white/10 bg-white/[0.04] p-6"
+      >
+        <h3 className="text-2xl font-bold">Cadastrar Sessão</h3>
+        <p className="mt-2 text-sm text-zinc-400">
+          Cadastre sessões ordinárias, administrativas, magnas ou especiais conforme a necessidade da Loja.
+        </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <input
+            type="date"
+            value={novaSessao.data}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, data: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          />
+
+          <select
+            value={novaSessao.tipo}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, tipo: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          >
+            {tiposSessao.map((tipo) => (
+              <option key={tipo}>{tipo}</option>
+            ))}
+          </select>
+
+          <select
+            value={novaSessao.grau}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, grau: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          >
+            {grausSessao.map((grau) => (
+              <option key={grau}>{grau}</option>
+            ))}
+          </select>
+
+          <input
+            value={novaSessao.titulo}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, titulo: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            placeholder="Título opcional"
+          />
+
+          <button
+            type="submit"
+            className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
+          >
+            Criar sessão
+          </button>
+        </div>
+      </form>
 
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <h3 className="text-2xl font-bold">Registro de Presença</h3>
+            <h3 className="text-2xl font-bold">Controle de Frequência</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              Selecione a sessão e marque a situação de cada obreiro.
+              Presença por sessão, cargo ocupado, visitantes e score individual.
             </p>
           </div>
 
-          <div className="flex flex-col gap-3 md:flex-row md:items-end">
-            <div>
-              <label className="text-sm text-zinc-300">Sessão</label>
+          <div className="flex rounded-full border border-white/10 bg-black/20 p-1">
+            <button
+              type="button"
+              onClick={() => setAba("chamada")}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                aba === "chamada" ? "bg-amber-400 text-black" : "text-zinc-300 hover:bg-white/10"
+              }`}
+            >
+              Chamada
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setAba("relatorio")}
+              className={`rounded-full px-5 py-2 text-sm font-semibold transition ${
+                aba === "relatorio" ? "bg-amber-400 text-black" : "text-zinc-300 hover:bg-white/10"
+              }`}
+            >
+              Relatório
+            </button>
+          </div>
+        </div>
+
+        {!sessaoAtual && (
+          <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5 text-amber-200">
+            Cadastre uma sessão para iniciar a chamada.
+          </div>
+        )}
+
+        {sessaoAtual && aba === "chamada" && (
+          <>
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
               <select
                 value={sessaoSelecionada}
                 onChange={(evento) => setSessaoSelecionada(evento.target.value)}
-                className="mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400 md:w-72"
+                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               >
-                {sessoes.map((sessao) => (
+                {sessoesExibicao.map((sessao) => (
                   <option key={sessao.id} value={sessao.id}>
-                    {sessao.titulo}
+                    {formatarDataBR(sessao.data)} - {sessao.tipo}
                   </option>
+                ))}
+              </select>
+
+              <input
+                value={busca}
+                onChange={(evento) => setBusca(evento.target.value)}
+                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+                placeholder="Buscar irmão"
+              />
+
+              <select
+                value={filtroStatus}
+                onChange={(evento) => setFiltroStatus(evento.target.value as FiltroStatus)}
+                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              >
+                {filtrosStatus.map((status) => (
+                  <option key={status}>{status}</option>
                 ))}
               </select>
             </div>
 
-            <button
-              onClick={() => marcarTodos("Presente")}
-              className="rounded-full bg-emerald-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-emerald-300"
-            >
-              Marcar todos presentes
-            </button>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onClick={() => setSomenteAtivos((valor) => !valor)}
+                className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
+              >
+                {somenteAtivos ? "Mostrar todos" : "Somente ativos"}
+              </button>
 
-            <button
-              onClick={() => marcarTodos("Não marcado")}
-              className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
-            >
-              Limpar sessão
-            </button>
-          </div>
-        </div>
+              <button
+                type="button"
+                onClick={() => marcarTodos("Presente")}
+                className="rounded-full bg-emerald-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-emerald-300"
+              >
+                Todos presentes
+              </button>
 
-        <div className="mt-6 overflow-hidden rounded-2xl border border-white/10">
-          <table className="w-full border-collapse text-left text-sm">
-            <thead className="bg-white/[0.06] text-zinc-300">
-              <tr>
-                <th className="px-5 py-4">Obreiro</th>
-                <th className="px-5 py-4">Grau</th>
-                <th className="px-5 py-4">Cargo</th>
-                <th className="px-5 py-4">Presença</th>
-              </tr>
-            </thead>
+              <button
+                type="button"
+                onClick={copiarSessaoAnterior}
+                className="rounded-full border border-amber-400/30 px-5 py-3 text-sm font-semibold text-amber-300 transition hover:bg-amber-400/10"
+              >
+                Copiar anterior
+              </button>
 
-            <tbody>
-              {obreirosOrdenados.map((obreiro) => {
-                const statusAtual = buscarStatus(obreiro.id);
+              <button
+                type="button"
+                onClick={() => marcarTodos("Não marcado")}
+                className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
+              >
+                Limpar
+              </button>
 
-                return (
-                  <tr
-                    key={obreiro.id}
-                    className="border-t border-white/10 transition hover:bg-white/[0.03]"
-                  >
-                    <td className="px-5 py-4 font-semibold text-white">{obreiro.nome}</td>
-                    <td className="px-5 py-4 text-zinc-300">{obreiro.grau}</td>
-                    <td className="px-5 py-4 text-zinc-300">{obreiro.cargo || "Sem cargo"}</td>
-                    <td className="px-5 py-4">
-                      <select
-                        value={statusAtual}
-                        onChange={(evento) =>
-                          atualizarPresenca(obreiro.id, evento.target.value as StatusPresenca)
-                        }
-                        className={`rounded-full border px-4 py-2 text-sm font-semibold outline-none ${classeStatus(
-                          statusAtual
-                        )}`}
-                      >
-                        {statusOpcoes.map((status) => (
-                          <option key={status}>{status}</option>
-                        ))}
-                      </select>
-                    </td>
+              <button
+                type="button"
+                onClick={removerSessao}
+                className="rounded-full border border-red-400/30 px-5 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-400/10"
+              >
+                Remover sessão
+              </button>
+            </div>
+
+            <div className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/10 p-5">
+              <h4 className="font-bold text-sky-300">Visitante em sessão</h4>
+              <p className="mt-2 text-sm text-zinc-300">
+                Cadastre o visitante com dados básicos para ele entrar na chamada da sessão.
+              </p>
+
+              <div className="mt-4 grid gap-3 md:grid-cols-5">
+                <input
+                  value={visitante.nome}
+                  onChange={(evento) =>
+                    setVisitante((atual) => ({ ...atual, nome: evento.target.value }))
+                  }
+                  className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-sky-400"
+                  placeholder="Nome do visitante"
+                />
+
+                <select
+                  value={visitante.grau}
+                  onChange={(evento) =>
+                    setVisitante((atual) => ({ ...atual, grau: evento.target.value }))
+                  }
+                  className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-sky-400"
+                >
+                  <option>Aprendiz Maçom</option>
+                  <option>Companheiro Maçom</option>
+                  <option>Mestre Maçom</option>
+                </select>
+
+                <input
+                  value={visitante.lojaOrigem}
+                  onChange={(evento) =>
+                    setVisitante((atual) => ({ ...atual, lojaOrigem: evento.target.value }))
+                  }
+                  className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-sky-400"
+                  placeholder="Loja de origem"
+                />
+
+                <input
+                  value={visitante.telefone}
+                  onChange={(evento) =>
+                    setVisitante((atual) => ({ ...atual, telefone: evento.target.value }))
+                  }
+                  className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-sky-400"
+                  placeholder="Telefone opcional"
+                />
+
+                <button
+                  type="button"
+                  onClick={cadastrarVisitante}
+                  className="rounded-full bg-sky-400 px-5 py-3 text-sm font-semibold text-black transition hover:bg-sky-300"
+                >
+                  Cadastrar visitante
+                </button>
+              </div>
+            </div>
+
+            {obreirosEmAtencao.length > 0 && (
+              <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
+                <h4 className="font-bold text-red-300">Irmãos para notificação</h4>
+                <p className="mt-2 text-sm text-zinc-300">
+                  Frequência inferior a 50% nos últimos 12 meses e faltas sem justificativa.
+                </p>
+
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {obreirosEmAtencao.map((item) => (
+                    <span
+                      key={item.obreiro.id}
+                      className="rounded-full border border-red-400/30 bg-black/20 px-3 py-1 text-xs font-semibold text-red-200"
+                    >
+                      {item.obreiro.nome} — {item.percentual}%
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
+                <thead className="bg-white/[0.06] text-zinc-300">
+                  <tr>
+                    <th className="px-5 py-4">Irmão</th>
+                    <th className="px-5 py-4">Grau</th>
+                    <th className="px-5 py-4">Cargo cadastral</th>
+                    <th className="px-5 py-4">Cargo em sessão</th>
+                    <th className="px-5 py-4">Presença</th>
+                    <th className="px-5 py-4">Observação</th>
+                    <th className="px-5 py-4">Score / Situação</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                </thead>
+
+                <tbody>
+                  {obreirosFiltrados.map((obreiro) => {
+                    const statusAtual = buscarStatus(obreiro.id);
+                    const scoreObreiro = buscarScoreObreiro(obreiro);
+
+                    return (
+                      <tr
+                        key={obreiro.id}
+                        className="border-t border-white/10 transition hover:bg-white/[0.03]"
+                      >
+                        <td className="px-5 py-4">
+                          <p className="font-semibold text-white">{obreiro.nome}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {obreiro.tipo ?? "Obreiro da Loja"}
+                            {obreiro.lojaOrigem ? ` | ${obreiro.lojaOrigem}` : ""}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4 text-zinc-300">{obreiro.grau}</td>
+
+                        <td className="px-5 py-4 text-zinc-300">
+                          {obreiro.cargo || "Sem cargo"}
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <select
+                            value={buscarCargoSessao(obreiro)}
+                            onChange={(evento) =>
+                              atualizarRegistro(obreiro.id, {
+                                cargoSessao: evento.target.value,
+                              })
+                            }
+                            className="rounded-full border border-white/10 bg-black/30 px-4 py-2 text-sm font-semibold text-zinc-200 outline-none focus:border-amber-400"
+                          >
+                            {cargosSessao.map((cargo) => (
+                              <option key={cargo}>{cargo}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <select
+                            value={statusAtual}
+                            onChange={(evento) =>
+                              atualizarRegistro(obreiro.id, {
+                                status: evento.target.value as StatusPresenca,
+                              })
+                            }
+                            className={`rounded-full border px-4 py-2 text-sm font-semibold outline-none ${classeStatus(statusAtual)}`}
+                          >
+                            {statusOpcoes.map((status) => (
+                              <option key={status}>{status}</option>
+                            ))}
+                          </select>
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <input
+                            value={buscarObservacao(obreiro.id)}
+                            onChange={(evento) =>
+                              atualizarRegistro(obreiro.id, {
+                                observacao: evento.target.value,
+                              })
+                            }
+                            className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-2 text-white outline-none focus:border-amber-400"
+                            placeholder="Justificativa ou observação"
+                          />
+                        </td>
+
+                        <td className="px-5 py-4">
+                          <div
+                            className={`w-fit rounded-2xl border px-4 py-2 ${scoreObreiro.classe}`}
+                          >
+                            <p className="text-sm font-bold">{scoreObreiro.valor}</p>
+                            <p className="mt-1 text-xs">{scoreObreiro.situacao}</p>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={exportarSessaoCSV}
+                className="rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300"
+              >
+                Exportar sessão
+              </button>
+            </div>
+          </>
+        )}
+
+        {sessaoAtual && aba === "relatorio" && (
+          <>
+            <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5">
+              <h4 className="font-bold text-amber-300">Relatório dos últimos 12 meses</h4>
+              <p className="mt-2 text-sm text-zinc-300">
+                Presença conta positivamente. Falta sem justificativa conta contra. Justificado e Não marcado não derrubam a frequência.
+              </p>
+            </div>
+
+            <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
+              <table className="w-full min-w-[1000px] border-collapse text-left text-sm">
+                <thead className="bg-white/[0.06] text-zinc-300">
+                  <tr>
+                    <th className="px-5 py-4">Irmão</th>
+                    <th className="px-5 py-4">Presentes</th>
+                    <th className="px-5 py-4">Faltas</th>
+                    <th className="px-5 py-4">Justificadas</th>
+                    <th className="px-5 py-4">Computadas</th>
+                    <th className="px-5 py-4">Frequência</th>
+                    <th className="px-5 py-4">Situação</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {relatorioObreiros.map((item) => {
+                    const scoreObreiro = buscarScoreObreiro(item.obreiro);
+
+                    return (
+                      <tr key={item.obreiro.id} className="border-t border-white/10">
+                        <td className="px-5 py-4">
+                          <p className="font-semibold text-white">{item.obreiro.nome}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {item.obreiro.grau} | {item.obreiro.cargo || "Sem cargo"}
+                          </p>
+                        </td>
+
+                        <td className="px-5 py-4 text-emerald-300">{item.presentes}</td>
+                        <td className="px-5 py-4 text-red-300">{item.faltas}</td>
+                        <td className="px-5 py-4 text-amber-300">{item.justificados}</td>
+                        <td className="px-5 py-4 text-zinc-300">{item.marcados}</td>
+                        <td className="px-5 py-4 font-bold text-white">
+                          {item.percentual}%
+                        </td>
+                        <td className="px-5 py-4">
+                          <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${scoreObreiro.classe}`}>
+                            {scoreObreiro.situacao}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={exportarRelatorioCSV}
+                className="rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300"
+              >
+                Exportar relatório
+              </button>
+            </div>
+          </>
+        )}
       </section>
     </div>
   );
