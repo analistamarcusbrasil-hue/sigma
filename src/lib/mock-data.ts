@@ -2,20 +2,45 @@ import type { Obreiro } from "@/types";
 
 export const modulos = [
   {
+    nome: "Dashboard",
+    href: "/dashboard",
+    descricao: "Painel principal da gestão atual.",
+  },
+  {
+    nome: "Obreiros",
+    href: "/obreiros",
+    descricao: "Cadastro único de obreiros da Loja e visitantes.",
+  },
+  {
+    nome: "Tesouraria",
+    href: "/tesouraria",
+    descricao: "Mensalidades, tronco, receitas, despesas e custos fixos.",
+  },
+  {
+    nome: "Chancelaria",
+    href: "/chancelaria",
+    descricao: "Sessões, presença, cargos em sessão e frequência.",
+  },
+  {
+    nome: "Secretaria",
+    href: "/secretaria",
+    descricao: "Atas, balaústres, ações, processos e decisões da Loja.",
+  },
+  {
     nome: "Prestação de Contas",
     href: "/prestacao-contas",
-    descricao: "Relatório mensal e anual de receitas, despesas, saldo e pendências.",
+    descricao: "Relatório sintético e analítico de receitas, despesas, saldo e repasse.",
   },
   {
     nome: "Configurações",
     href: "/configuracoes",
-    descricao: "Data de início da gestão, ano de trabalho, saldo inicial e dívidas herdadas.",
+    descricao: "Cadastro da gestão, diretoria, saldo inicial e repasse anterior.",
   },
-  { nome: "Dashboard", href: "/dashboard" },
-  { nome: "Obreiros", href: "/obreiros" },
-  { nome: "Tesouraria", href: "/tesouraria" },
-  { nome: "Chancelaria", href: "/chancelaria" },
-  { nome: "Secretaria", href: "/secretaria" },
+  {
+    nome: "Backup",
+    href: "/backup",
+    descricao: "Backup, restauração e proteção dos dados locais.",
+  },
 ];
 
 export const obreirosBase: Obreiro[] = [
@@ -97,6 +122,11 @@ export const pendencias = [
     responsavel: "Secretário",
     prazo: "Antes da sessão",
     prioridade: "Média",
+  },
+  {
+    nome: "Backup",
+    href: "/backup",
+    descricao: "Backup, restauração e proteção dos dados locais.",
   },
 ];
 
