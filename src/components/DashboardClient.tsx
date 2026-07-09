@@ -35,6 +35,58 @@ type Sessao = {
   observacao?: string;
 };
 
+type DocumentoSecretaria = {
+  id: string;
+  numero: string;
+  tipo: "Ata" | "Balaústre";
+  sessaoId: string;
+  data: string;
+  titulo: string;
+  grau: string;
+  status: "Rascunho" | "Em revisão" | "Aprovado" | "Arquivado";
+  textoGerado?: string;
+};
+
+type AcaoPendente = {
+  id: string;
+  titulo: string;
+  responsavelId: string;
+  prazo: string;
+  status: "Pendente" | "Em andamento" | "Concluída";
+  observacao: string;
+};
+
+type ProcessoSecretaria = {
+  id: string;
+  nome: string;
+  tipo: string;
+  etapa: string;
+  responsavelId: string;
+  dataPrevista: string;
+  status: "Aberto" | "Em andamento" | "Concluído" | "Suspenso";
+  observacao: string;
+};
+
+type PecaArquitetura = {
+  id: string;
+  titulo: string;
+  obreiroId: string;
+  grau: string;
+  dataPrevista: string;
+  status: "Prevista" | "Apresentada" | "Adiada";
+  observacao: string;
+};
+
+type DecisaoLoja = {
+  id: string;
+  documentoId: string;
+  sessaoId: string;
+  data: string;
+  texto: string;
+  status: "Vigente" | "Revogada";
+  origem: string;
+};
+
 const meses2026 = [
   { id: "2026-01", nome: "Janeiro/2026" },
   { id: "2026-02", nome: "Fevereiro/2026" },
@@ -141,6 +193,11 @@ export function DashboardClient() {
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
+  const [documentosSecretaria, setDocumentosSecretaria] = useState<DocumentoSecretaria[]>([]);
+  const [acoesSecretaria, setAcoesSecretaria] = useState<AcaoPendente[]>([]);
+  const [processosSecretaria, setProcessosSecretaria] = useState<ProcessoSecretaria[]>([]);
+  const [pecasSecretaria, setPecasSecretaria] = useState<PecaArquitetura[]>([]);
+  const [decisoesLoja, setDecisoesLoja] = useState<DecisaoLoja[]>([]);
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
@@ -158,6 +215,11 @@ export function DashboardClient() {
     setSaldoAnterior(Number(localStorage.getItem("sigma_saldo_anterior") ?? 0));
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
+    setDocumentosSecretaria(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
+    setAcoesSecretaria(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
+    setProcessosSecretaria(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
+    setPecasSecretaria(lerLocalStorage<PecaArquitetura[]>("sigma_pecas_secretaria", []));
+    setDecisoesLoja(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
     setCarregado(true);
   }, []);
 
@@ -350,6 +412,36 @@ export function DashboardClient() {
     });
   }, [obreirosDaLoja, sessoes, presencas]);
 
+  const resumoSecretaria = useMemo(() => {
+    const documentosPendentes = documentosSecretaria.filter((item) =>
+      item.status === "Rascunho" || item.status === "Em revisão"
+    );
+
+    const documentosAprovados = documentosSecretaria.filter((item) =>
+      item.status === "Aprovado" || item.status === "Arquivado"
+    );
+
+    const acoesPendentes = acoesSecretaria.filter((item) => item.status !== "Concluída");
+    const processosAbertos = processosSecretaria.filter((item) => item.status !== "Concluído");
+    const pecasPrevistas = pecasSecretaria.filter((item) => item.status === "Prevista");
+    const decisoesVigentes = decisoesLoja.filter((item) => item.status === "Vigente");
+
+    return {
+      documentosPendentes,
+      documentosAprovados,
+      acoesPendentes,
+      processosAbertos,
+      pecasPrevistas,
+      decisoesVigentes,
+    };
+  }, [
+    documentosSecretaria,
+    acoesSecretaria,
+    processosSecretaria,
+    pecasSecretaria,
+    decisoesLoja,
+  ]);
+
   const resumo = useMemo(() => {
     const mesAtual = mesAtualDoSistema();
 
@@ -488,6 +580,103 @@ export function DashboardClient() {
             {proximaSessao?.titulo || proximaSessao?.tipo || "Cadastre sessões na Chancelaria"}
           </p>
         </article>
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+        <h3 className="text-2xl font-bold">Resumo da Secretaria</h3>
+        <p className="mt-2 text-sm text-zinc-400">
+          Situação dos documentos, decisões, ações pendentes, processos e peças de arquitetura.
+        </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-6">
+          <article className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
+            <p className="text-sm text-amber-200">Documentos pendentes</p>
+            <h4 className="mt-2 text-3xl font-bold text-amber-300">
+              {resumoSecretaria.documentosPendentes.length}
+            </h4>
+            <p className="mt-1 text-xs text-amber-100/70">Rascunho ou revisão</p>
+          </article>
+
+          <article className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+            <p className="text-sm text-emerald-200">Aprovados</p>
+            <h4 className="mt-2 text-3xl font-bold text-emerald-300">
+              {resumoSecretaria.documentosAprovados.length}
+            </h4>
+            <p className="mt-1 text-xs text-emerald-100/70">Atas e balaústres</p>
+          </article>
+
+          <article className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
+            <p className="text-sm text-red-200">Ações pendentes</p>
+            <h4 className="mt-2 text-3xl font-bold text-red-300">
+              {resumoSecretaria.acoesPendentes.length}
+            </h4>
+            <p className="mt-1 text-xs text-red-100/70">Providências abertas</p>
+          </article>
+
+          <article className="rounded-2xl border border-sky-400/20 bg-sky-400/10 p-4">
+            <p className="text-sm text-sky-200">Processos</p>
+            <h4 className="mt-2 text-3xl font-bold text-sky-300">
+              {resumoSecretaria.processosAbertos.length}
+            </h4>
+            <p className="mt-1 text-xs text-sky-100/70">Em andamento</p>
+          </article>
+
+          <article className="rounded-2xl border border-violet-400/20 bg-violet-400/10 p-4">
+            <p className="text-sm text-violet-200">Peças previstas</p>
+            <h4 className="mt-2 text-3xl font-bold text-violet-300">
+              {resumoSecretaria.pecasPrevistas.length}
+            </h4>
+            <p className="mt-1 text-xs text-violet-100/70">Arquitetura</p>
+          </article>
+
+          <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-4">
+            <p className="text-sm text-zinc-300">Decisões vigentes</p>
+            <h4 className="mt-2 text-3xl font-bold text-white">
+              {resumoSecretaria.decisoesVigentes.length}
+            </h4>
+            <p className="mt-1 text-xs text-zinc-500">Registro da Loja</p>
+          </article>
+        </div>
+
+        <div className="mt-6 grid gap-6 xl:grid-cols-2">
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-white">Próximas ações da Secretaria</h4>
+
+            <div className="mt-4 space-y-3">
+              {resumoSecretaria.acoesPendentes.slice(0, 5).map((acao) => (
+                <div key={acao.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-sm font-semibold text-white">{acao.titulo}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    Status: {acao.status} | Prazo: {formatarDataBR(acao.prazo)}
+                  </p>
+                </div>
+              ))}
+
+              {resumoSecretaria.acoesPendentes.length === 0 && (
+                <p className="text-sm text-zinc-500">Nenhuma ação pendente.</p>
+              )}
+            </div>
+          </div>
+
+          <div className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <h4 className="font-semibold text-white">Últimas decisões registradas</h4>
+
+            <div className="mt-4 space-y-3">
+              {resumoSecretaria.decisoesVigentes.slice(0, 5).map((decisao) => (
+                <div key={decisao.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                  <p className="text-sm font-semibold text-white">{decisao.texto}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {formatarDataBR(decisao.data)} | {decisao.origem}
+                  </p>
+                </div>
+              ))}
+
+              {resumoSecretaria.decisoesVigentes.length === 0 && (
+                <p className="text-sm text-zinc-500">Nenhuma decisão registrada.</p>
+              )}
+            </div>
+          </div>
+        </div>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">

@@ -7,21 +7,19 @@ import type { Obreiro } from "@/types";
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
 
+type TipoCustoLoja =
+  | "Aluguel do Templo"
+  | "Mensalidade GOB Amapá"
+  | "GOB Brasil"
+  | "Taxa de Iniciação"
+  | "Custo variável por obreiro"
+  | "Outro";
+
 type RegraMensalidade = {
   id: string;
   dataInicio: string;
   valor: number;
   descricao: string;
-};
-
-type Mensalidade = {
-  id: string;
-  obreiroId: string;
-  mes: string;
-  valorDevido: number;
-  valorPago: number;
-  status: StatusMensalidade;
-  observacao: string;
 };
 
 type Recebimento = {
@@ -37,6 +35,28 @@ type Lancamento = {
   tipo: TipoLancamento;
   descricao: string;
   valor: number;
+};
+
+type ParcelaCustoLoja = {
+  id: string;
+  numero: number;
+  vencimento: string;
+  valor: number;
+  pago: boolean;
+  dataPagamento: string;
+};
+
+type CustoLoja = {
+  id: string;
+  fornecedorNome: string;
+  cnpj: string;
+  tipoDivida: TipoCustoLoja;
+  descricao: string;
+  valorTotal: number;
+  parcelasQtd: number;
+  dataInicio: string;
+  dataFim: string;
+  parcelas: ParcelaCustoLoja[];
 };
 
 const meses2026 = [
@@ -74,6 +94,16 @@ const lancamentoVazio = {
   valor: 0,
 };
 
+const custoVazio = {
+  fornecedorNome: "",
+  cnpj: "",
+  tipoDivida: "Aluguel do Templo" as TipoCustoLoja,
+  descricao: "",
+  valorTotal: 0,
+  parcelasQtd: 1,
+  dataInicio: "",
+};
+
 function gerarId() {
   return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
 }
@@ -85,9 +115,15 @@ function formatarMoeda(valor: number) {
   });
 }
 
+function hojeISO() {
+  return new Date().toISOString().slice(0, 10);
+}
+
 function formatarDataBR(dataISO: string) {
-  if (!dataISO) return "";
-  const [ano, mes, dia] = dataISO.split("-");
+  if (!dataISO) return "Sem data";
+  const partes = dataISO.split("-");
+  if (partes.length !== 3) return dataISO;
+  const [ano, mes, dia] = partes;
   return `${dia}/${mes}/${ano}`;
 }
 
@@ -113,79 +149,74 @@ function classeStatus(status: StatusMensalidade) {
   return "border-red-400/30 bg-red-400/10 text-red-300";
 }
 
-
-function consolidarMensalidades(lista: Mensalidade[]) {
-  const mapa = new Map<string, Mensalidade>();
-
-  for (const item of lista) {
-    const chave = `${item.obreiroId}_${item.mes}`;
-    const anterior = mapa.get(chave);
-
-    if (!anterior) {
-      mapa.set(chave, {
-        ...item,
-        status: calcularStatus(item.valorDevido, item.valorPago),
-      });
-      continue;
-    }
-
-    const valorDevido = item.valorDevido || anterior.valorDevido;
-    const valorPago = Math.min(valorDevido, anterior.valorPago + item.valorPago);
-
-    mapa.set(chave, {
-      ...anterior,
-      valorDevido,
-      valorPago,
-      status: calcularStatus(valorDevido, valorPago),
-      observacao: [anterior.observacao, item.observacao].filter(Boolean).join(" | "),
-    });
+function lerLocalStorage<T>(chave: string, fallback: T): T {
+  try {
+    const valor = localStorage.getItem(chave);
+    if (!valor) return fallback;
+    return JSON.parse(valor) as T;
+  } catch {
+    return fallback;
   }
+}
 
-  return Array.from(mapa.values());
+function adicionarMeses(dataISO: string, meses: number) {
+  const [ano, mes, dia] = dataISO.split("-").map(Number);
+  const data = new Date(ano, mes - 1 + meses, dia, 12, 0, 0);
+  const anoFinal = data.getFullYear();
+  const mesFinal = String(data.getMonth() + 1).padStart(2, "0");
+  const diaFinal = String(data.getDate()).padStart(2, "0");
+  return `${anoFinal}-${mesFinal}-${diaFinal}`;
+}
+
+function gerarParcelasCusto(valorTotal: number, qtd: number, dataInicio: string) {
+  const parcelasQtd = Math.max(1, qtd);
+  const totalCentavos = Math.round(valorTotal * 100);
+  const base = Math.floor(totalCentavos / parcelasQtd);
+  const resto = totalCentavos % parcelasQtd;
+
+  return Array.from({ length: parcelasQtd }).map((_, index) => {
+    const centavos = base + (index < resto ? 1 : 0);
+
+    return {
+      id: gerarId(),
+      numero: index + 1,
+      vencimento: adicionarMeses(dataInicio, index),
+      valor: centavos / 100,
+      pago: false,
+      dataPagamento: "",
+    };
+  });
 }
 
 export function TesourariaClient() {
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [mesSelecionado, setMesSelecionado] = useState("2026-07");
   const [busca, setBusca] = useState("");
-  const [mensalidades, setMensalidades] = useState<Mensalidade[]>([]);
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
   const [regras, setRegras] = useState<RegraMensalidade[]>([regraInicial]);
   const [novaRegra, setNovaRegra] = useState(regraVazia);
   const [pagamentosRapidos, setPagamentosRapidos] = useState<Record<string, string>>({});
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [novoLancamento, setNovoLancamento] = useState(lancamentoVazio);
+  const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
+  const [novoCusto, setNovoCusto] = useState(custoVazio);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
-    const obreirosSalvos = localStorage.getItem("sigma_obreiros");
-    const mensalidadesSalvas = localStorage.getItem("sigma_mensalidades");
-    const recebimentosSalvos = localStorage.getItem("sigma_recebimentos_tesouraria");
-    const regrasSalvas = localStorage.getItem("sigma_regras_mensalidade");
-    const lancamentosSalvos = localStorage.getItem("sigma_lancamentos_financeiros");
-    const saldoSalvo = localStorage.getItem("sigma_saldo_anterior");
+    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
 
-    if (obreirosSalvos) setObreiros(normalizarObreiros(JSON.parse(obreirosSalvos)));
-    if (mensalidadesSalvas) setMensalidades(consolidarMensalidades(JSON.parse(mensalidadesSalvas)));
-    if (recebimentosSalvos) setRecebimentos(JSON.parse(recebimentosSalvos));
+    const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
+      regraInicial,
+    ]);
 
-    if (regrasSalvas) {
-      const regrasCarregadas = JSON.parse(regrasSalvas);
-      if (Array.isArray(regrasCarregadas) && regrasCarregadas.length > 0) {
-        setRegras(regrasCarregadas);
-      }
-    }
-
-    if (lancamentosSalvos) setLancamentos(JSON.parse(lancamentosSalvos));
-    if (saldoSalvo) setSaldoAnterior(Number(saldoSalvo));
-
+    setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
+    setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
+    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
+    setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
+    setSaldoAnterior(Number(localStorage.getItem("sigma_saldo_anterior") ?? 0));
     setCarregado(true);
   }, []);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_mensalidades", JSON.stringify(consolidarMensalidades(mensalidades)));
-  }, [mensalidades, carregado]);
 
   useEffect(() => {
     if (carregado) localStorage.setItem("sigma_recebimentos_tesouraria", JSON.stringify(recebimentos));
@@ -198,6 +229,10 @@ export function TesourariaClient() {
   useEffect(() => {
     if (carregado) localStorage.setItem("sigma_lancamentos_financeiros", JSON.stringify(lancamentos));
   }, [lancamentos, carregado]);
+
+  useEffect(() => {
+    if (carregado) localStorage.setItem("sigma_custos_loja", JSON.stringify(custosLoja));
+  }, [custosLoja, carregado]);
 
   useEffect(() => {
     if (carregado) localStorage.setItem("sigma_saldo_anterior", String(saldoAnterior));
@@ -219,17 +254,13 @@ export function TesourariaClient() {
     return regrasValidas.at(-1)?.valor ?? 100;
   }
 
+  function valorTotalAno() {
+    return meses2026.reduce((total, mes) => total + valorVigenteDoMes(mes.id), 0);
+  }
+
   function nomeMes(mesId: string) {
     return meses2026.find((mes) => mes.id === mesId)?.nome ?? mesId;
   }
-
-  function valorTotalAno() {
-    return meses2026.reduce((total, mes) => {
-      return total + valorVigenteDoMes(mes.id);
-    }, 0);
-  }
-
-
 
   function hojeDoSistema() {
     const hoje = new Date();
@@ -246,20 +277,6 @@ export function TesourariaClient() {
     return dataVencimentoDoMes(mes).getTime() <= hojeDoSistema().getTime();
   }
 
-  function mesesVencidosAteHoje() {
-    return meses2026.filter((mes) => mesEstaVencido(mes.id));
-  }
-
-  function mesesParaBaixaDoPagamento() {
-    return meses2026;
-  }
-
-  function recebidoNoMesDoObreiro(obreiroId: string) {
-    return recebimentos
-      .filter((item) => item.obreiroId === obreiroId && item.mesLancamento === mesSelecionado)
-      .reduce((total, item) => total + item.valor, 0);
-  }
-
   const obreirosDaLoja = useMemo(() => {
     return [...obreiros]
       .filter((obreiro) => obreiro.tipo !== "Visitante")
@@ -273,43 +290,20 @@ export function TesourariaClient() {
     );
   }, [obreirosDaLoja, busca]);
 
-  function buscarMensalidade(obreiroId: string, mes: string) {
-    const registros = mensalidades.filter(
-      (item) => item.obreiroId === obreiroId && item.mes === mes
-    );
-
-    return consolidarMensalidades(registros)[0];
+  function recebidoNoMesDoObreiro(obreiroId: string) {
+    return recebimentos
+      .filter((item) => item.obreiroId === obreiroId && item.mesLancamento === mesSelecionado)
+      .reduce((total, item) => total + item.valor, 0);
   }
 
-  function obterMensalidade(obreiroId: string, mes: string): Mensalidade {
-    const existente = buscarMensalidade(obreiroId, mes);
-
-    if (existente) return existente;
-
-    return {
-      id: "",
-      obreiroId,
-      mes,
-      valorDevido: valorVigenteDoMes(mes),
-      valorPago: 0,
-      status: "Pendente",
-      observacao: "",
-    };
-  }
-
-  function mesesAteSelecionado() {
-    return mesesVencidosAteHoje();
-  }
-
-  function mesesAntesDoSelecionado() {
-    return mesesVencidosAteHoje();
+  function totalPagoAcumuladoObreiro(obreiroId: string) {
+    return recebimentos
+      .filter((item) => item.obreiroId === obreiroId)
+      .reduce((total, item) => total + item.valor, 0);
   }
 
   function distribuicaoFinanceiraIrmao(obreiroId: string) {
-    const totalPago = recebimentos
-      .filter((item) => item.obreiroId === obreiroId)
-      .reduce((total, item) => total + item.valor, 0);
-
+    const totalPago = totalPagoAcumuladoObreiro(obreiroId);
     let saldoPago = totalPago;
 
     const meses = meses2026.map((mes) => {
@@ -333,10 +327,7 @@ export function TesourariaClient() {
 
     const vencidos = meses.filter((item) => item.vencido);
 
-    const totalEmAberto = vencidos.reduce((total, item) => {
-      return total + item.emAberto;
-    }, 0);
-
+    const totalEmAberto = vencidos.reduce((total, item) => total + item.emAberto, 0);
     const mesesEmAberto = vencidos.filter((item) => item.emAberto > 0).length;
 
     return {
@@ -348,6 +339,14 @@ export function TesourariaClient() {
     };
   }
 
+  function situacaoFinanceiraIrmao(obreiroId: string) {
+    const distribuicao = distribuicaoFinanceiraIrmao(obreiroId);
+
+    return {
+      totalDevido: distribuicao.totalEmAberto,
+      mesesEmAberto: distribuicao.mesesEmAberto,
+    };
+  }
 
   function situacaoDoMes(obreiroId: string, mes: string) {
     const distribuicao = distribuicaoFinanceiraIrmao(obreiroId);
@@ -362,19 +361,6 @@ export function TesourariaClient() {
         status: "Pendente" as StatusMensalidade,
       }
     );
-  }
-
-  function situacaoFinanceiraIrmao(obreiroId: string) {
-    const distribuicao = distribuicaoFinanceiraIrmao(obreiroId);
-
-    return {
-      totalDevido: distribuicao.totalEmAberto,
-      mesesEmAberto: distribuicao.mesesEmAberto,
-    };
-  }
-
-  function totalPagoAcumuladoObreiro(obreiroId: string) {
-    return distribuicaoFinanceiraIrmao(obreiroId).totalPago;
   }
 
   function scoreFinanceiro(obreiroId: string) {
@@ -432,7 +418,6 @@ export function TesourariaClient() {
     };
   }
 
-
   function salvarPagamentoRapido(obreiroId: string) {
     const valorInformado = Number(pagamentosRapidos[obreiroId] ?? 0);
 
@@ -440,53 +425,6 @@ export function TesourariaClient() {
       alert("Informe o valor a pagar no mês.");
       return;
     }
-
-    let saldoParaDistribuir = valorInformado;
-
-    setMensalidades((atuais) => {
-      let lista: Mensalidade[] = [...atuais];
-
-      for (const mes of mesesParaBaixaDoPagamento()) {
-        if (saldoParaDistribuir <= 0) break;
-
-        const existente = lista.find(
-          (item) => item.obreiroId === obreiroId && item.mes === mes.id
-        );
-
-        const valorDevido = existente?.valorDevido ?? valorVigenteDoMes(mes.id);
-        const valorPagoAtual = existente?.valorPago ?? 0;
-        const valorEmAberto = Math.max(valorDevido - valorPagoAtual, 0);
-
-        if (valorEmAberto <= 0) continue;
-
-        const valorAbatido = Math.min(saldoParaDistribuir, valorEmAberto);
-        const novoValorPago = valorPagoAtual + valorAbatido;
-
-        const atualizado: Mensalidade = {
-          id: existente?.id ?? gerarId(),
-          obreiroId,
-          mes: mes.id,
-          valorDevido,
-          valorPago: novoValorPago,
-          status: calcularStatus(valorDevido, novoValorPago),
-          observacao: existente?.observacao
-            ? `${existente.observacao} | Baixa automática de ${formatarMoeda(valorAbatido)} em ${mesSelecionado}`
-            : `Baixa automática de ${formatarMoeda(valorAbatido)} em ${mesSelecionado}`,
-        };
-
-        if (existente) {
-          lista = lista.map((item) =>
-            item.obreiroId === obreiroId && item.mes === mes.id ? atualizado : item
-          );
-        } else {
-          lista = [...lista, atualizado];
-        }
-
-        saldoParaDistribuir -= valorAbatido;
-      }
-
-      return consolidarMensalidades(lista);
-    });
 
     setRecebimentos((atuais) => [
       ...atuais,
@@ -508,55 +446,21 @@ export function TesourariaClient() {
     const confirmar = confirm("Deseja marcar todos como pagos no mês selecionado?");
     if (!confirmar) return;
 
-    const novosRecebimentos: Recebimento[] = [];
-
-    setMensalidades((atuais) => {
-      let lista: Mensalidade[] = [...atuais];
-
-      for (const obreiro of obreirosDaLoja) {
-        const existente = lista.find(
-          (item) => item.obreiroId === obreiro.id && item.mes === mesSelecionado
-        );
-
-        const valorDevido = existente?.valorDevido ?? valorVigenteDoMes(mesSelecionado);
-
-        const atualizado: Mensalidade = {
-          id: existente?.id ?? gerarId(),
-          obreiroId: obreiro.id,
-          mes: mesSelecionado,
-          valorDevido,
-          valorPago: valorDevido,
-          status: "Pago",
-          observacao: "Pagamento marcado em lote.",
-        };
-
-        if (existente) {
-          lista = lista.map((item) =>
-            item.obreiroId === obreiro.id && item.mes === mesSelecionado ? atualizado : item
-          );
-        } else {
-          lista = [...lista, atualizado];
-        }
-
-        novosRecebimentos.push({
-          id: gerarId(),
-          obreiroId: obreiro.id,
-          mesLancamento: mesSelecionado,
-          valor: valorDevido,
-        });
-      }
-
-      return consolidarMensalidades(lista);
-    });
-
-    setRecebimentos((atuais) => [...atuais, ...novosRecebimentos]);
+    setRecebimentos((atuais) => [
+      ...atuais,
+      ...obreirosDaLoja.map((obreiro) => ({
+        id: gerarId(),
+        obreiroId: obreiro.id,
+        mesLancamento: mesSelecionado,
+        valor: valorVigenteDoMes(mesSelecionado),
+      })),
+    ]);
   }
 
   function limparMes() {
-    const confirmar = confirm("Deseja limpar os registros do mês selecionado?");
+    const confirmar = confirm("Deseja limpar os recebimentos do mês selecionado?");
     if (!confirmar) return;
 
-    setMensalidades((atuais) => atuais.filter((item) => item.mes !== mesSelecionado));
     setRecebimentos((atuais) => atuais.filter((item) => item.mesLancamento !== mesSelecionado));
   }
 
@@ -639,25 +543,139 @@ export function TesourariaClient() {
     setLancamentos((atuais) => atuais.filter((item) => item.id !== id));
   }
 
+  function cadastrarCusto(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    if (!novoCusto.fornecedorNome.trim()) {
+      alert("Informe o nome da empresa, órgão ou fornecedor.");
+      return;
+    }
+
+    if (!novoCusto.dataInicio) {
+      alert("Informe a data da primeira parcela.");
+      return;
+    }
+
+    if (novoCusto.valorTotal <= 0) {
+      alert("Informe o valor total da dívida.");
+      return;
+    }
+
+    if (novoCusto.parcelasQtd <= 0) {
+      alert("Informe a quantidade de parcelas.");
+      return;
+    }
+
+    const parcelas = gerarParcelasCusto(
+      Number(novoCusto.valorTotal),
+      Number(novoCusto.parcelasQtd),
+      novoCusto.dataInicio
+    );
+
+    setCustosLoja((atuais) => [
+      {
+        id: gerarId(),
+        fornecedorNome: novoCusto.fornecedorNome.trim(),
+        cnpj: novoCusto.cnpj.trim(),
+        tipoDivida: novoCusto.tipoDivida,
+        descricao: novoCusto.descricao.trim(),
+        valorTotal: Number(novoCusto.valorTotal),
+        parcelasQtd: Number(novoCusto.parcelasQtd),
+        dataInicio: novoCusto.dataInicio,
+        dataFim: parcelas.at(-1)?.vencimento ?? novoCusto.dataInicio,
+        parcelas,
+      },
+      ...atuais,
+    ]);
+
+    setNovoCusto(custoVazio);
+  }
+
+  function alternarPagamentoParcela(custoId: string, parcelaId: string) {
+    setCustosLoja((atuais) =>
+      atuais.map((custo) => {
+        if (custo.id !== custoId) return custo;
+
+        return {
+          ...custo,
+          parcelas: custo.parcelas.map((parcela) =>
+            parcela.id === parcelaId
+              ? {
+                  ...parcela,
+                  pago: !parcela.pago,
+                  dataPagamento: parcela.pago ? "" : hojeISO(),
+                }
+              : parcela
+          ),
+        };
+      })
+    );
+  }
+
+  function removerCusto(id: string) {
+    const confirmar = confirm("Deseja remover este custo da Loja?");
+    if (!confirmar) return;
+
+    setCustosLoja((atuais) => atuais.filter((item) => item.id !== id));
+  }
+
+  const resumoCustos = useMemo(() => {
+    const todasParcelas = custosLoja.flatMap((custo) =>
+      custo.parcelas.map((parcela) => ({
+        ...parcela,
+        custo,
+      }))
+    );
+
+    const hoje = hojeDoSistema();
+
+    const totalCadastrado = todasParcelas.reduce((total, parcela) => total + parcela.valor, 0);
+
+    const totalPago = todasParcelas
+      .filter((parcela) => parcela.pago)
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const totalEmAberto = todasParcelas
+      .filter((parcela) => !parcela.pago)
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const totalVencido = todasParcelas
+      .filter((parcela) => !parcela.pago && new Date(`${parcela.vencimento}T12:00:00`) <= hoje)
+      .reduce((total, parcela) => total + parcela.valor, 0);
+
+    const proximasParcelas = todasParcelas
+      .filter((parcela) => !parcela.pago)
+      .sort(
+        (a, b) =>
+          new Date(`${a.vencimento}T12:00:00`).getTime() -
+          new Date(`${b.vencimento}T12:00:00`).getTime()
+      )
+      .slice(0, 6);
+
+    return {
+      totalCadastrado,
+      totalPago,
+      totalEmAberto,
+      totalVencido,
+      proximasParcelas,
+    };
+  }, [custosLoja]);
+
   const resumoMes = useMemo(() => {
     const recebido = recebimentos
       .filter((item) => item.mesLancamento === mesSelecionado)
       .reduce((total, item) => total + item.valor, 0);
 
-    const vencidoNoMes =
-      mesEstaVencido(mesSelecionado) ? obreirosDaLoja.length * valorVigenteDoMes(mesSelecionado) : 0;
-
     return {
       recebido,
-      vencidoNoMes,
     };
-  }, [recebimentos, mesSelecionado, obreirosDaLoja, regras]);
+  }, [recebimentos, mesSelecionado]);
 
   const resumoDivida = useMemo(() => {
     return obreirosDaLoja.reduce((total, obreiro) => {
       return total + situacaoFinanceiraIrmao(obreiro.id).totalDevido;
     }, 0);
-  }, [obreirosDaLoja, mensalidades, recebimentos, mesSelecionado, regras]);
+  }, [obreirosDaLoja, recebimentos, mesSelecionado, regras]);
 
   const resumoGeral = useMemo(() => {
     const totalMensalidades = recebimentos.reduce((total, item) => total + item.valor, 0);
@@ -670,22 +688,26 @@ export function TesourariaClient() {
       .filter((item) => item.tipo === "Receita Extra")
       .reduce((total, item) => total + item.valor, 0);
 
-    const despesas = lancamentos
+    const despesasAvulsas = lancamentos
       .filter((item) => item.tipo === "Despesa")
       .reduce((total, item) => total + item.valor, 0);
+
+    const totalDespesas = despesasAvulsas + resumoCustos.totalPago;
 
     return {
       totalMensalidades,
       tronco,
       receitas,
-      despesas,
-      saldoAtual: saldoAnterior + totalMensalidades + tronco + receitas - despesas,
+      despesasAvulsas,
+      custosPagos: resumoCustos.totalPago,
+      totalDespesas,
+      saldoAtual: saldoAnterior + totalMensalidades + tronco + receitas - totalDespesas,
     };
-  }, [recebimentos, lancamentos, saldoAnterior]);
+  }, [recebimentos, lancamentos, saldoAnterior, resumoCustos]);
 
   return (
     <div className="mt-8 space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Mensalidade vigente</p>
           <h3 className="mt-3 text-3xl font-bold text-amber-300">
@@ -711,11 +733,21 @@ export function TesourariaClient() {
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
-          <p className="text-sm text-zinc-400">Tronco</p>
-          <h3 className="mt-3 text-3xl font-bold text-sky-300">
-            {formatarMoeda(resumoGeral.tronco)}
+          <p className="text-sm text-zinc-400">Custos pagos</p>
+          <h3 className="mt-3 text-3xl font-bold text-red-300">
+            {formatarMoeda(resumoCustos.totalPago)}
           </h3>
-          <p className="mt-2 text-sm text-zinc-500">Separado da mensalidade</p>
+          <p className="mt-2 text-sm text-zinc-500">Abatidos do saldo</p>
+        </article>
+
+        <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
+          <p className="text-sm text-zinc-400">Custos em aberto</p>
+          <h3 className="mt-3 text-3xl font-bold text-amber-300">
+            {formatarMoeda(resumoCustos.totalEmAberto)}
+          </h3>
+          <p className="mt-2 text-sm text-zinc-500">
+            Vencido: {formatarMoeda(resumoCustos.totalVencido)}
+          </p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
@@ -723,14 +755,14 @@ export function TesourariaClient() {
           <h3 className="mt-3 text-3xl font-bold text-amber-300">
             {formatarMoeda(resumoGeral.saldoAtual)}
           </h3>
-          <p className="mt-2 text-sm text-zinc-500">Com saldo anterior</p>
+          <p className="mt-2 text-sm text-zinc-500">Já desconta custos pagos</p>
         </article>
       </section>
 
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Valor da Mensalidade por Vigência</h3>
         <p className="mt-2 text-sm text-zinc-400">
-          Cadastre reajustes com data de início. O valor da linha do irmão é apenas informativo e segue esta vigência.
+          Cadastre reajustes com data de início. O valor na linha do irmão é apenas informativo.
         </p>
 
         <form onSubmit={cadastrarRegra} className="mt-6 grid gap-3 md:grid-cols-4">
@@ -811,7 +843,7 @@ export function TesourariaClient() {
           <div>
             <h3 className="text-2xl font-bold">Mensalidades</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              Lance somente o valor que o irmão está pagando no mês. O sistema abate automaticamente os meses vencidos mais antigos.
+              Lance somente o valor que o irmão está pagando no mês. O sistema distribui automaticamente no ano.
             </p>
           </div>
 
@@ -920,7 +952,7 @@ export function TesourariaClient() {
                       <div className={`w-fit rounded-2xl border px-4 py-2 ${classeStatus(situacaoMes.status)}`}>
                         <p className="text-xs font-bold">{situacaoMes.status}</p>
                         <p className="mt-1 text-[11px]">
-                          Pago da mensalidade: {formatarMoeda(situacaoMes.valorPago)}
+                          Recebido no mês: {formatarMoeda(recebidoNoMesDoObreiro(obreiro.id))}
                         </p>
                       </div>
                     </td>
@@ -970,7 +1002,7 @@ export function TesourariaClient() {
                       </div>
 
                       <p className="mt-2 text-[11px] text-zinc-500">
-                        Abate os meses vencidos mais antigos.
+                        Abate os meses mais antigos.
                       </p>
                     </td>
                   </tr>
@@ -978,6 +1010,247 @@ export function TesourariaClient() {
               })}
             </tbody>
           </table>
+        </div>
+      </section>
+
+      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+        <h3 className="text-2xl font-bold">Custos Fixos e Obrigações da Loja</h3>
+        <p className="mt-2 text-sm text-zinc-400">
+          Cadastre dívidas, fornecedores, parcelas e vencimentos. Ao marcar uma parcela como paga, o valor é abatido automaticamente do saldo da Loja.
+        </p>
+
+        <form onSubmit={cadastrarCusto} className="mt-6 grid gap-3">
+          <div className="grid gap-3 md:grid-cols-3">
+            <input
+              value={novoCusto.fornecedorNome}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({ ...atual, fornecedorNome: evento.target.value }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              placeholder="Nome da empresa, órgão ou fornecedor"
+            />
+
+            <input
+              value={novoCusto.cnpj}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({ ...atual, cnpj: evento.target.value }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              placeholder="CNPJ"
+            />
+
+            <select
+              value={novoCusto.tipoDivida}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({
+                  ...atual,
+                  tipoDivida: evento.target.value as TipoCustoLoja,
+                }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            >
+              <option>Aluguel do Templo</option>
+              <option>Mensalidade GOB Amapá</option>
+              <option>GOB Brasil</option>
+              <option>Taxa de Iniciação</option>
+              <option>Custo variável por obreiro</option>
+              <option>Outro</option>
+            </select>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <input
+              type="number"
+              min="0"
+              value={novoCusto.valorTotal}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({ ...atual, valorTotal: Number(evento.target.value) }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              placeholder="Valor total"
+            />
+
+            <input
+              type="number"
+              min="1"
+              value={novoCusto.parcelasQtd}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({ ...atual, parcelasQtd: Number(evento.target.value) }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+              placeholder="Parcelas"
+            />
+
+            <input
+              type="date"
+              value={novoCusto.dataInicio}
+              onChange={(evento) =>
+                setNovoCusto((atual) => ({ ...atual, dataInicio: evento.target.value }))
+              }
+              className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            />
+
+            <button
+              type="submit"
+              className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
+            >
+              Cadastrar custo
+            </button>
+          </div>
+
+          <input
+            value={novoCusto.descricao}
+            onChange={(evento) =>
+              setNovoCusto((atual) => ({ ...atual, descricao: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            placeholder="Descrição ou observação da dívida"
+          />
+        </form>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-4">
+          <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
+            <p className="text-sm text-zinc-400">Total cadastrado</p>
+            <h4 className="mt-2 text-2xl font-bold text-white">
+              {formatarMoeda(resumoCustos.totalCadastrado)}
+            </h4>
+          </article>
+
+          <article className="rounded-2xl border border-emerald-400/20 bg-emerald-400/10 p-4">
+            <p className="text-sm text-emerald-200">Total pago</p>
+            <h4 className="mt-2 text-2xl font-bold text-emerald-300">
+              {formatarMoeda(resumoCustos.totalPago)}
+            </h4>
+          </article>
+
+          <article className="rounded-2xl border border-amber-400/20 bg-amber-400/10 p-4">
+            <p className="text-sm text-amber-200">Em aberto</p>
+            <h4 className="mt-2 text-2xl font-bold text-amber-300">
+              {formatarMoeda(resumoCustos.totalEmAberto)}
+            </h4>
+          </article>
+
+          <article className="rounded-2xl border border-red-400/20 bg-red-400/10 p-4">
+            <p className="text-sm text-red-200">Vencido</p>
+            <h4 className="mt-2 text-2xl font-bold text-red-300">
+              {formatarMoeda(resumoCustos.totalVencido)}
+            </h4>
+          </article>
+        </div>
+
+        <div className="mt-6 space-y-4">
+          {custosLoja.map((custo) => {
+            const pago = custo.parcelas
+              .filter((parcela) => parcela.pago)
+              .reduce((total, parcela) => total + parcela.valor, 0);
+
+            const aberto = custo.valorTotal - pago;
+
+            return (
+              <div key={custo.id} className="rounded-2xl border border-white/10 bg-black/20 p-5">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+                  <div>
+                    <p className="text-lg font-bold text-white">{custo.fornecedorNome}</p>
+                    <p className="mt-1 text-sm text-zinc-400">
+                      {custo.tipoDivida} | CNPJ: {custo.cnpj || "Não informado"}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {custo.descricao || "Sem descrição."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-sm">
+                    <span className="rounded-full border border-white/10 px-3 py-1 text-zinc-300">
+                      Total: {formatarMoeda(custo.valorTotal)}
+                    </span>
+                    <span className="rounded-full border border-emerald-400/30 px-3 py-1 text-emerald-300">
+                      Pago: {formatarMoeda(pago)}
+                    </span>
+                    <span className="rounded-full border border-amber-400/30 px-3 py-1 text-amber-300">
+                      Aberto: {formatarMoeda(Math.max(aberto, 0))}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removerCusto(custo.id)}
+                      className="rounded-full border border-red-400/30 px-3 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
+                    >
+                      Remover custo
+                    </button>
+                  </div>
+                </div>
+
+                <div className="mt-4 overflow-auto rounded-xl border border-white/10">
+                  <table className="w-full min-w-[800px] border-collapse text-left text-sm">
+                    <thead className="bg-white/[0.06] text-zinc-300">
+                      <tr>
+                        <th className="px-4 py-3">Parcela</th>
+                        <th className="px-4 py-3">Vencimento</th>
+                        <th className="px-4 py-3">Valor</th>
+                        <th className="px-4 py-3">Status</th>
+                        <th className="px-4 py-3">Pagamento</th>
+                        <th className="px-4 py-3">Ação</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {custo.parcelas.map((parcela) => (
+                        <tr key={parcela.id} className="border-t border-white/10">
+                          <td className="px-4 py-3 text-zinc-300">
+                            {parcela.numero}/{custo.parcelasQtd}
+                          </td>
+                          <td className="px-4 py-3 text-zinc-300">
+                            {formatarDataBR(parcela.vencimento)}
+                          </td>
+                          <td className="px-4 py-3 font-bold text-white">
+                            {formatarMoeda(parcela.valor)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                parcela.pago
+                                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                                  : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema()
+                                    ? "border-red-400/30 bg-red-400/10 text-red-300"
+                                    : "border-amber-400/30 bg-amber-400/10 text-amber-300"
+                              }`}
+                            >
+                              {parcela.pago
+                                ? "Pago"
+                                : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema()
+                                  ? "Vencido"
+                                  : "Aberto"}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-zinc-400">
+                            {parcela.dataPagamento ? formatarDataBR(parcela.dataPagamento) : "-"}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              type="button"
+                              onClick={() => alternarPagamentoParcela(custo.id, parcela.id)}
+                              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                                parcela.pago
+                                  ? "border border-red-400/30 text-red-300 hover:bg-red-400/10"
+                                  : "bg-emerald-400 text-black hover:bg-emerald-300"
+                              }`}
+                            >
+                              {parcela.pago ? "Desfazer pagamento" : "Marcar como paga"}
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })}
+
+          {custosLoja.length === 0 && (
+            <p className="rounded-2xl border border-white/10 bg-black/20 p-6 text-center text-sm text-zinc-500">
+              Nenhum custo fixo ou obrigação cadastrado.
+            </p>
+          )}
         </div>
       </section>
 
@@ -1014,8 +1287,13 @@ export function TesourariaClient() {
             </div>
 
             <div className="flex justify-between text-zinc-300">
-              <span>Despesas</span>
-              <strong className="text-red-300">{formatarMoeda(resumoGeral.despesas)}</strong>
+              <span>Despesas avulsas</span>
+              <strong className="text-red-300">{formatarMoeda(resumoGeral.despesasAvulsas)}</strong>
+            </div>
+
+            <div className="flex justify-between text-zinc-300">
+              <span>Custos da Loja pagos</span>
+              <strong className="text-red-300">{formatarMoeda(resumoGeral.custosPagos)}</strong>
             </div>
 
             <div className="border-t border-white/10 pt-3">
@@ -1030,9 +1308,9 @@ export function TesourariaClient() {
         </div>
 
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-          <h3 className="text-2xl font-bold">Tronco, Receitas e Despesas</h3>
+          <h3 className="text-2xl font-bold">Tronco, Receitas e Despesas Avulsas</h3>
           <p className="mt-2 text-sm text-zinc-400">
-            O tronco fica separado das mensalidades, mas entra no saldo geral.
+            O tronco fica separado das mensalidades. Despesas avulsas são diferentes dos custos fixos cadastrados.
           </p>
 
           <form onSubmit={cadastrarLancamento} className="mt-6 grid gap-3 md:grid-cols-5">
