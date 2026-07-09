@@ -1,8 +1,9 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { jsPDF } from "jspdf";
 import { obreirosBase } from "@/lib/mock-data";
-import type { Obreiro } from "@/types";
+import type { Obreiro, RegistroPresenca } from "@/types";
 
 type Sessao = {
   id: string;
@@ -178,12 +179,15 @@ function classeStatus(status: string) {
 export function SecretariaClient() {
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
+  const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
   const [documentos, setDocumentos] = useState<DocumentoSecretaria[]>([]);
   const [acoes, setAcoes] = useState<AcaoPendente[]>([]);
   const [processos, setProcessos] = useState<ProcessoSecretaria[]>([]);
   const [pecas, setPecas] = useState<PecaArquitetura[]>([]);
   const [decisoes, setDecisoes] = useState<DecisaoLoja[]>([]);
   const [mesInformativo, setMesInformativo] = useState("2026-07");
+  const [documentoAbertoId, setDocumentoAbertoId] = useState("");
+  const [documentoEmEdicaoId, setDocumentoEmEdicaoId] = useState("");
   const [novoDocumento, setNovoDocumento] = useState(documentoVazio);
   const [novaAcao, setNovaAcao] = useState(acaoVazia);
   const [novoProcesso, setNovoProcesso] = useState(processoVazio);
@@ -193,6 +197,7 @@ export function SecretariaClient() {
   useEffect(() => {
     setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
+    setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
     setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
     setAcoes(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
     setProcessos(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
@@ -233,6 +238,36 @@ export function SecretariaClient() {
     return obreiros.find((obreiro) => obreiro.id === id)?.nome ?? "Não informado";
   }
 
+  function normalizarTexto(valor: string) {
+    return valor
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase();
+  }
+
+  function nomePorCargoDaSessao(sessaoId: string, termos: string[]) {
+    const termosNormalizados = termos.map(normalizarTexto);
+
+    const registroDaSessao = presencas.find((presenca) => {
+      const cargo = normalizarTexto(presenca.cargoSessao ?? "");
+      return (
+        presenca.sessaoId === sessaoId &&
+        termosNormalizados.some((termo) => cargo.includes(termo))
+      );
+    });
+
+    if (registroDaSessao) {
+      return nomeObreiro(registroDaSessao.obreiroId);
+    }
+
+    const obreiroPeloCadastro = obreirosDaLoja.find((obreiro) => {
+      const cargo = normalizarTexto(obreiro.cargo ?? "");
+      return termosNormalizados.some((termo) => cargo.includes(termo));
+    });
+
+    return obreiroPeloCadastro?.nome ?? "Não informado";
+  }
+
   function sessaoPorId(id: string) {
     return sessoes.find((sessao) => sessao.id === id);
   }
@@ -242,6 +277,8 @@ export function SecretariaClient() {
     const data = documento.data || sessao?.data || "";
     const tituloSessao = documento.titulo || sessao?.titulo || sessao?.tipo || "Sessão";
     const grau = documento.grau || sessao?.grau || "Grau não informado";
+    const veneravelMestre = nomePorCargoDaSessao(documento.sessaoId, ["veneravel"]);
+    const secretarioSessao = nomePorCargoDaSessao(documento.sessaoId, ["secretario"]);
     const decisoesTexto = separarDecisoes(documento.decisoesLoja);
 
     const decisoesFormatadas =
@@ -256,6 +293,10 @@ A∴R∴L∴S∴ UNIVERSITÁRIA MENSAGEIROS DA PAZ Nº 3934
 Rito Adonhiramita
 
 Aos ${formatarDataBR(data)}, realizou-se ${tituloSessao}, em ${grau}, conforme registros da Loja.
+
+COMPOSIÇÃO DA SESSÃO
+Venerável Mestre: ${veneravelMestre}
+Secretário: ${secretarioSessao}
 
 RELATO DA SESSÃO
 ${documento.relatoBruto || "Relato bruto ainda não informado."}
@@ -338,8 +379,12 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
       return;
     }
 
-    const documentoId = gerarId();
-    const textoFinal = novoDocumento.textoGerado || montarBalaustrePadrao(novoDocumento);
+    const documentoId = documentoEmEdicaoId || gerarId();
+
+    const textoFinal =
+      novoDocumento.textoGerado.trim().length > 0
+        ? novoDocumento.textoGerado
+        : montarBalaustrePadrao(novoDocumento);
 
     const documentoSalvo: DocumentoSecretaria = {
       id: documentoId,
@@ -347,9 +392,19 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
       numero: novoDocumento.numero.trim(),
       titulo: novoDocumento.titulo.trim(),
       textoGerado: textoFinal,
+      resumo:
+        novoDocumento.resumo.trim().length > 0
+          ? novoDocumento.resumo
+          : textoFinal.slice(0, 350),
     };
 
-    setDocumentos((atuais) => [documentoSalvo, ...atuais]);
+    setDocumentos((atuais) => {
+      if (documentoEmEdicaoId) {
+        return atuais.map((item) => (item.id === documentoEmEdicaoId ? documentoSalvo : item));
+      }
+
+      return [documentoSalvo, ...atuais];
+    });
 
     const novasDecisoes = separarDecisoes(novoDocumento.decisoesLoja).map((decisao) => ({
       id: gerarId(),
@@ -361,17 +416,103 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
       origem: `${novoDocumento.tipo} nº ${novoDocumento.numero}`,
     }));
 
-    if (novasDecisoes.length > 0) {
-      setDecisoes((atuais) => [...novasDecisoes, ...atuais]);
-    }
+    setDecisoes((atuais) => [
+      ...novasDecisoes,
+      ...atuais.filter((decisao) => decisao.documentoId !== documentoId),
+    ]);
 
     setNovoDocumento(documentoVazio);
+    setDocumentoEmEdicaoId("");
+    setDocumentoAbertoId(documentoId);
+  }
+
+  function visualizarDocumento(id: string) {
+    setDocumentoAbertoId(id);
+  }
+
+  function editarDocumento(documento: DocumentoSecretaria) {
+    setNovoDocumento({
+      numero: documento.numero,
+      tipo: documento.tipo,
+      sessaoId: documento.sessaoId,
+      data: documento.data,
+      titulo: documento.titulo,
+      grau: documento.grau,
+      status: documento.status,
+      ordemDoDia: documento.ordemDoDia,
+      resumo: documento.resumo,
+      deliberacoes: documento.deliberacoes,
+      tronco: documento.tronco,
+      observacoes: documento.observacoes,
+      relatoBruto: documento.relatoBruto,
+      decisoesLoja: documento.decisoesLoja,
+      textoGerado: documento.textoGerado || montarBalaustrePadrao(documento),
+    });
+
+    setDocumentoEmEdicaoId(documento.id);
+    setDocumentoAbertoId(documento.id);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
+  function aprovarDocumento(id: string) {
+    const confirmar = confirm("Deseja aprovar este documento?");
+    if (!confirmar) return;
+
+    setDocumentos((atuais) =>
+      atuais.map((documento) =>
+        documento.id === id ? { ...documento, status: "Aprovado" } : documento
+      )
+    );
   }
 
   function removerDocumento(id: string) {
     const confirmar = confirm("Deseja remover este documento?");
     if (!confirmar) return;
     setDocumentos((atuais) => atuais.filter((item) => item.id !== id));
+  }
+
+  function textoDoDocumento(documento: DocumentoSecretaria) {
+    return documento.textoGerado?.trim()
+      ? documento.textoGerado
+      : montarBalaustrePadrao(documento);
+  }
+
+  function nomeArquivoDocumento(documento: DocumentoSecretaria) {
+    return `${documento.tipo}_${documento.numero}_${documento.data || "sem-data"}`
+      .replace(/[^a-zA-Z0-9_-]/g, "_")
+      .replace(/_+/g, "_");
+  }
+
+  function baixarDocumentoPDF(documento: DocumentoSecretaria) {
+    const pdf = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const margemX = 15;
+    const margemY = 18;
+    const larguraTexto = 180;
+    const alturaMaxima = 280;
+    const alturaLinha = 6;
+
+    pdf.setFont("times", "normal");
+    pdf.setFontSize(12);
+
+    const linhas = pdf.splitTextToSize(textoDoDocumento(documento), larguraTexto);
+    let y = margemY;
+
+    linhas.forEach((linha: string) => {
+      if (y > alturaMaxima) {
+        pdf.addPage();
+        y = margemY;
+      }
+
+      pdf.text(linha, margemX, y);
+      y += alturaLinha;
+    });
+
+    pdf.save(`${nomeArquivoDocumento(documento)}.pdf`);
   }
 
   function salvarAcao(evento: FormEvent<HTMLFormElement>) {
@@ -663,12 +804,27 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
             placeholder="A minuta do balaústre aparecerá aqui. Você poderá revisar e ajustar antes de salvar."
           />
 
-          <button
-            type="submit"
-            className="w-fit rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300"
-          >
-            Salvar documento
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="submit"
+              className="w-fit rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300"
+            >
+              {documentoEmEdicaoId ? "Salvar alterações" : "Salvar documento"}
+            </button>
+
+            {documentoEmEdicaoId && (
+              <button
+                type="button"
+                onClick={() => {
+                  setNovoDocumento(documentoVazio);
+                  setDocumentoEmEdicaoId("");
+                }}
+                className="w-fit rounded-full border border-zinc-400/30 px-6 py-3 font-semibold text-zinc-300 transition hover:bg-white/10"
+              >
+                Cancelar edição
+              </button>
+            )}
+          </div>
         </form>
 
         <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
@@ -679,7 +835,6 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
                 <th className="px-5 py-4">Data</th>
                 <th className="px-5 py-4">Sessão vinculada</th>
                 <th className="px-5 py-4">Status</th>
-                <th className="px-5 py-4">Resumo</th>
                 <th className="px-5 py-4">Ação</th>
               </tr>
             </thead>
@@ -709,18 +864,51 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
                       </span>
                     </td>
 
-                    <td className="max-w-md px-5 py-4 text-zinc-400">
-                      {item.textoGerado || item.resumo || "Sem resumo informado."}
-                    </td>
 
                     <td className="px-5 py-4">
-                      <button
-                        type="button"
-                        onClick={() => removerDocumento(item.id)}
-                        className="rounded-full border border-red-400/30 px-3 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
-                      >
-                        Remover
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          onClick={() => visualizarDocumento(item.id)}
+                          className="rounded-full border border-amber-400/40 px-3 py-1 text-xs font-semibold text-amber-300 transition hover:bg-amber-400/10"
+                        >
+                          Visualizar
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => editarDocumento(item)}
+                          className="rounded-full border border-sky-400/40 px-3 py-1 text-xs font-semibold text-sky-300 transition hover:bg-sky-400/10"
+                        >
+                          Editar
+                        </button>
+
+                        {item.status !== "Aprovado" && (
+                          <button
+                            type="button"
+                            onClick={() => aprovarDocumento(item.id)}
+                            className="rounded-full border border-emerald-400/40 px-3 py-1 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/10"
+                          >
+                            Aprovar
+                          </button>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => baixarDocumentoPDF(item)}
+                          className="rounded-full border border-emerald-400/40 px-3 py-1 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-400/10"
+                        >
+                          Baixar PDF
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => removerDocumento(item.id)}
+                          className="rounded-full border border-red-400/30 px-3 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
+                        >
+                          Remover
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 );
@@ -728,7 +916,7 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
 
               {documentos.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-6 text-center text-zinc-500">
+                  <td colSpan={5} className="px-5 py-6 text-center text-zinc-500">
                     Nenhum documento cadastrado.
                   </td>
                 </tr>
@@ -1084,7 +1272,7 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
 
               {pecas.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="px-5 py-6 text-center text-zinc-500">
+                  <td colSpan={5} className="px-5 py-6 text-center text-zinc-500">
                     Nenhuma peça cadastrada.
                   </td>
                 </tr>
