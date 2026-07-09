@@ -14,6 +14,30 @@ type Sessao = {
   observacao?: string;
 };
 
+type CargosGestao = {
+  veneravelMestre?: string;
+  primeiroVigilante?: string;
+  segundoVigilante?: string;
+  orador?: string;
+  secretario?: string;
+  tesoureiro?: string;
+  chanceler?: string;
+  mestreCerimonias?: string;
+};
+
+type GestaoLoja = {
+  id: string;
+  nomeGestao: string;
+  gestaoAnteriorRepasse: string;
+  dataInicioGestao: string;
+  dataFimGestao: string;
+  anoTrabalho: number;
+  financeiroPositivoRecebido: number;
+  financeiroNegativoRecebido: number;
+  observacaoRepasse?: string;
+  cargos?: CargosGestao;
+};
+
 type DocumentoSecretaria = {
   id: string;
   numero: string;
@@ -176,6 +200,42 @@ function classeStatus(status: string) {
   return "border-zinc-400/30 bg-white/[0.04] text-zinc-300";
 }
 
+function obterGestaoAtualDaLoja(): GestaoLoja | null {
+  if (typeof window === "undefined") return null;
+
+  try {
+    const gestoesRaw = localStorage.getItem("sigma_gestoes");
+    const gestaoAtualId = localStorage.getItem("sigma_gestao_atual_id") ?? "";
+
+    if (!gestoesRaw) return null;
+
+    const gestoes = JSON.parse(gestoesRaw) as GestaoLoja[];
+    return gestoes.find((gestao) => gestao.id === gestaoAtualId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function formatarDataDocumento(dataISO: string) {
+  if (!dataISO) return "Não informado";
+
+  const partes = dataISO.split("-");
+  if (partes.length !== 3) return dataISO;
+
+  const [ano, mes, dia] = partes;
+  return `${dia}/${mes}/${ano}`;
+}
+
+function normalizarCargo(valor: string) {
+  return valor
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[ºª.]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
 export function SecretariaClient() {
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
@@ -192,9 +252,11 @@ export function SecretariaClient() {
   const [novaAcao, setNovaAcao] = useState(acaoVazia);
   const [novoProcesso, setNovoProcesso] = useState(processoVazio);
   const [novaPeca, setNovaPeca] = useState(pecaVazia);
+  const [gestaoAtual, setGestaoAtual] = useState<GestaoLoja | null>(null);
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
+    setGestaoAtual(obterGestaoAtualDaLoja());
     setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
@@ -272,7 +334,75 @@ export function SecretariaClient() {
     return sessoes.find((sessao) => sessao.id === id);
   }
 
-  function montarBalaustrePadrao(documento: Omit<DocumentoSecretaria, "id"> | DocumentoSecretaria) {
+    function nomeCargoSessao(cargoBuscado: string, sessaoId: string) {
+    if (!sessaoId) return "";
+
+    const cargoNormalizado = normalizarCargo(cargoBuscado);
+
+    const registro = presencas.find((item) => {
+      const cargoSessao = normalizarCargo(item.cargoSessao ?? "");
+
+      return (
+        item.sessaoId === sessaoId &&
+        item.status === "Presente" &&
+        cargoSessao.includes(cargoNormalizado)
+      );
+    });
+
+    if (!registro) return "";
+
+    return obreiros.find((obreiro) => obreiro.id === registro.obreiroId)?.nome ?? "";
+  }
+
+  function nomeCargoDocumento(cargo: keyof CargosGestao, sessaoId: string) {
+    const mapaCargo: Record<keyof CargosGestao, string> = {
+      veneravelMestre: "veneravel mestre",
+      primeiroVigilante: "primeiro vigilante",
+      segundoVigilante: "segundo vigilante",
+      orador: "orador",
+      secretario: "secretario",
+      tesoureiro: "tesoureiro",
+      chanceler: "chanceler",
+      mestreCerimonias: "mestre de cerimonias",
+    };
+
+    return (
+      nomeCargoSessao(mapaCargo[cargo], sessaoId) ||
+      gestaoAtual?.cargos?.[cargo]?.trim() ||
+      "Não informado"
+    );
+  }
+
+  function cabecalhoGestaoDocumento(documento: DocumentoSecretaria) {
+    return `À GLÓRIA DO G∴A∴D∴U∴
+A∴R∴L∴S∴ Universitária Mensageiros da Paz nº 3934
+
+GESTÃO
+Gestão: ${gestaoAtual?.nomeGestao || "Não informada"}
+Repasse recebido de: ${gestaoAtual?.gestaoAnteriorRepasse || "Não informado"}
+Período da gestão: ${formatarDataDocumento(gestaoAtual?.dataInicioGestao || "")} até ${formatarDataDocumento(gestaoAtual?.dataFimGestao || "")}
+
+DIREÇÃO VIGENTE
+Venerável Mestre: ${nomeCargoDocumento("veneravelMestre", documento.sessaoId)}
+Secretário: ${nomeCargoDocumento("secretario", documento.sessaoId)}
+Tesoureiro: ${nomeCargoDocumento("tesoureiro", documento.sessaoId)}`;
+  }
+
+  function rodapeAssinaturasDocumento(documento: DocumentoSecretaria) {
+    return `
+
+ASSINATURAS
+
+________________________________________
+${nomeCargoDocumento("veneravelMestre", documento.sessaoId)}
+Venerável Mestre
+
+________________________________________
+${nomeCargoDocumento("secretario", documento.sessaoId)}
+Secretário`;
+  }
+
+function montarBalaustrePadrao(documento: Omit<DocumentoSecretaria, "id"> | DocumentoSecretaria) {
     const sessao = sessaoPorId(documento.sessaoId);
     const data = documento.data || sessao?.data || "";
     const tituloSessao = documento.titulo || sessao?.titulo || sessao?.tipo || "Sessão";
@@ -472,9 +602,22 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
   }
 
   function textoDoDocumento(documento: DocumentoSecretaria) {
-    return documento.textoGerado?.trim()
-      ? documento.textoGerado
-      : montarBalaustrePadrao(documento);
+    const base = documento.textoGerado?.trim()
+      ? documento.textoGerado.trim()
+      : montarBalaustrePadrao(documento).trim();
+
+    const cabecalho = cabecalhoGestaoDocumento(documento);
+    const rodape = rodapeAssinaturasDocumento(documento);
+
+    const textoComCabecalho = base.includes("DIREÇÃO VIGENTE")
+      ? base
+      : `${cabecalho}
+
+${base}`;
+
+    return textoComCabecalho.includes("ASSINATURAS")
+      ? textoComCabecalho
+      : `${textoComCabecalho}${rodape}`;
   }
 
   function nomeArquivoDocumento(documento: DocumentoSecretaria) {
