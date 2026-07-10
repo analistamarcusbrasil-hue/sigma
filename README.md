@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# SIGMA LUMP
 
-## Getting Started
+Sistema integrado de gestão maçônica para Secretaria, Chancelaria, Tesouraria e cadastro de obreiros.
 
-First, run the development server:
+## Execução local
 
-```bash
+```powershell
+cd C:\Users\USER\Downloads\sigma
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Abra `http://localhost:3000`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Configuração do Supabase
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+1. Crie um projeto no Supabase e, no **SQL Editor**, execute `supabase/migrations/20260710_create_profiles.sql`.
+2. Crie o arquivo `.env.local` (não envie ao Git) com:
 
-## Learn More
+```env
+NEXT_PUBLIC_SUPABASE_URL=https://SEU-PROJETO.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sua_chave_publica
+SUPABASE_SECRET_KEY=sua_chave_secreta
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
 
-To learn more about Next.js, take a look at the following resources:
+3. Em **Authentication > URL Configuration**, inclua `http://localhost:3000/auth/confirm` como URL de redirecionamento. Inclua também a URL da Vercel quando publicar.
+4. Crie o primeiro usuário no painel **Authentication > Users**. Depois, no SQL Editor, associe-o como administrador (troque o e-mail):
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```sql
+insert into public.profiles (id, nome, email, perfil, status, permissoes, ativado_em)
+select id, 'Administrador SIGMA', email, 'Administrador', 'ativo',
+  '["/dashboard", "/obreiros", "/secretaria", "/chancelaria", "/tesouraria", "/prestacao-contas", "/configuracoes", "/backup", "/usuarios"]'::jsonb,
+  timezone('utc', now())
+from auth.users where email = 'seu-email@exemplo.com';
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Após entrar como administrador, use **Usuários e Acessos** para enviar convites e gerenciar permissões. Senhas não são armazenadas pelo SIGMA: recuperação, convite e autenticação são tratados pelo Supabase Auth.
 
-## Deploy on Vercel
+## Validação
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```powershell
+npm run lint
+npm run build
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Para produção, publique em uma plataforma com runtime completo, como a Vercel. O projeto não usa exportação estática nem GitHub Pages, pois autenticação por cookies exige runtime de servidor.
