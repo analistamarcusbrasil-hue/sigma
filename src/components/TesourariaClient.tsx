@@ -5,6 +5,7 @@ import { obreirosBase } from "@/lib/mock-data";
 import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
+import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -114,14 +115,6 @@ function formatarDataBR(dataISO: string) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function normalizarObreiros(lista: Obreiro[]) {
-  return lista.map((obreiro) => ({
-    ...obreiro,
-    tipo: obreiro.tipo ?? "Obreiro da Loja",
-    lojaOrigem: obreiro.lojaOrigem ?? "",
-  }));
-}
-
 function calcularStatus(valorDevido: number, valorPago: number): StatusMensalidade {
   if (valorDevido === 0) return "Isento";
   if (valorPago >= valorDevido) return "Pago";
@@ -213,7 +206,7 @@ export function TesourariaClient() {
     setAnoTrabalho(anoSalvo);
     setMesSelecionado(mesesValidos[0]?.id ?? mesAtualDoSistemaNoAno(anoSalvo));
 
-    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
+    setObreiros(carregarObreiros());
 
     const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
       regraInicial,

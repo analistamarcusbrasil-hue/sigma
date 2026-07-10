@@ -1,5 +1,7 @@
 export type TipoObreiro = "Obreiro da Loja" | "Visitante";
 
+export type SituacaoObreiro = "Ativo" | "Inativo";
+
 export type Obreiro = {
   id: string;
   nome: string;
@@ -7,7 +9,9 @@ export type Obreiro = {
   cargo: string;
   telefone: string;
   email: string;
-  situacao: string;
+  situacao: SituacaoObreiro;
+  dataCadastro: string;
+  observacoes: string;
   tipo?: TipoObreiro;
   lojaOrigem?: string;
 };

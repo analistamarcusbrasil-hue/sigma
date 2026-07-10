@@ -2,6 +2,7 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
+import { carregarObreiros, normalizarObreiros, salvarObreiros } from "@/lib/obreiros";
 import type { Obreiro, RegistroPresenca, StatusPresenca } from "@/types";
 
 type Sessao = {
@@ -75,6 +76,8 @@ const visitanteVazio: Obreiro = {
   telefone: "",
   email: "",
   situacao: "Ativo",
+  dataCadastro: "",
+  observacoes: "",
   tipo: "Visitante",
   lojaOrigem: "",
 };
@@ -99,14 +102,6 @@ function formatarDataBR(dataISO: string) {
 
 function parseDataISO(dataISO: string) {
   return new Date(`${dataISO}T12:00:00`);
-}
-
-function normalizarObreiros(lista: Obreiro[]) {
-  return lista.map((obreiro) => ({
-    ...obreiro,
-    tipo: obreiro.tipo ?? "Obreiro da Loja",
-    lojaOrigem: obreiro.lojaOrigem ?? "",
-  }));
 }
 
 function normalizarSessoes(lista: Sessao[]) {
@@ -164,13 +159,10 @@ export function ChancelariaClient() {
   const [visitante, setVisitante] = useState<Obreiro>(visitanteVazio);
 
   useEffect(() => {
-    const obreirosSalvos = localStorage.getItem("sigma_obreiros");
     const presencasSalvas = localStorage.getItem("sigma_presencas");
     const sessoesSalvas = localStorage.getItem("sigma_sessoes");
 
-    if (obreirosSalvos) {
-      setObreiros(normalizarObreiros(JSON.parse(obreirosSalvos)));
-    }
+    setObreiros(carregarObreiros());
 
     if (presencasSalvas) {
       setPresencas(JSON.parse(presencasSalvas));
@@ -191,7 +183,7 @@ export function ChancelariaClient() {
 
   useEffect(() => {
     if (carregado) {
-      localStorage.setItem("sigma_obreiros", JSON.stringify(obreiros));
+      salvarObreiros(obreiros);
     }
   }, [obreiros, carregado]);
 

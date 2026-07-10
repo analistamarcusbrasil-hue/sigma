@@ -52,6 +52,8 @@ export const obreirosBase: Obreiro[] = [
     telefone: "",
     email: "",
     situacao: "Ativo",
+    dataCadastro: "2026-07-09",
+    observacoes: "",
   },
   {
     id: "2",
@@ -61,6 +63,8 @@ export const obreirosBase: Obreiro[] = [
     telefone: "",
     email: "",
     situacao: "Ativo",
+    dataCadastro: "2026-07-09",
+    observacoes: "",
   },
   {
     id: "3",
@@ -70,6 +74,8 @@ export const obreirosBase: Obreiro[] = [
     telefone: "",
     email: "",
     situacao: "Ativo",
+    dataCadastro: "2026-07-09",
+    observacoes: "",
   },
 ];
 

@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { obreirosBase } from "@/lib/mock-data";
+import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import type { Obreiro, RegistroPresenca } from "@/types";
 
 type Sessao = {
@@ -164,14 +165,6 @@ function lerLocalStorage<T>(chave: string, fallback: T): T {
   }
 }
 
-function normalizarObreiros(lista: Obreiro[]) {
-  return lista.map((obreiro) => ({
-    ...obreiro,
-    tipo: obreiro.tipo ?? "Obreiro da Loja",
-    lojaOrigem: obreiro.lojaOrigem ?? "",
-  }));
-}
-
 function separarDecisoes(texto: string) {
   return texto
     .split("\n")
@@ -257,7 +250,7 @@ export function SecretariaClient() {
 
   useEffect(() => {
     setGestaoAtual(obterGestaoAtualDaLoja());
-    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
+    setObreiros(carregarObreiros());
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
     setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));

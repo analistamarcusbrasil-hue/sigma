@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
+import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import type { Obreiro } from "@/types";
 
 type TipoRelatorio = "Gestão";
@@ -251,14 +252,6 @@ function lerLocalStorage<T>(chave: string, fallback: T): T {
   }
 }
 
-function normalizarObreiros(lista: Obreiro[]) {
-  return lista.map((obreiro) => ({
-    ...obreiro,
-    tipo: obreiro.tipo ?? "Obreiro da Loja",
-    lojaOrigem: obreiro.lojaOrigem ?? "",
-  }));
-}
-
 function saldoInicialGestao(gestao: GestaoLoja | null) {
   if (!gestao) {
     if (typeof window === "undefined") return 0;
@@ -301,7 +294,7 @@ export function DashboardClient() {
     const gestao = obterGestaoAtual();
 
     setGestaoAtual(gestao);
-    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
+    setObreiros(carregarObreiros());
 
     const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
       regraInicial,

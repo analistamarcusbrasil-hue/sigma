@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { obreirosBase } from "@/lib/mock-data";
+import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import type { Obreiro } from "@/types";
 
 type TipoRelatorio = "Mensal" | "Anual";
@@ -189,14 +190,6 @@ function lerLocalStorage<T>(chave: string, fallback: T): T {
   }
 }
 
-function normalizarObreiros(lista: Obreiro[]) {
-  return lista.map((obreiro) => ({
-    ...obreiro,
-    tipo: obreiro.tipo ?? "Obreiro da Loja",
-    lojaOrigem: obreiro.lojaOrigem ?? "",
-  }));
-}
-
 function obterGestaoAtual() {
   if (typeof window === "undefined") return null;
 
@@ -285,7 +278,7 @@ export function PrestacaoContasClient() {
       regraInicial,
     ]);
 
-    setObreiros(normalizarObreiros(lerLocalStorage<Obreiro[]>("sigma_obreiros", obreirosBase)));
+    setObreiros(carregarObreiros());
     setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
     setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
     setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
