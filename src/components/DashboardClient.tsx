@@ -52,6 +52,7 @@ type Lancamento = {
   tipo: "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
   descricao: string;
   valor: number;
+  sessaoId?: string;
 };
 
 type ParcelaCustoLoja = {
@@ -554,6 +555,49 @@ export function DashboardClient() {
     };
   }, [documentos, acoes, processos, pecas, decisoes, gestaoAtual]);
 
+  const fluxoSessoes = useMemo(() => {
+    return sessoes
+      .filter((sessao) => dataDentroDaGestao(sessao.data, gestaoAtual))
+      .sort((a, b) => b.data.localeCompare(a.data))
+      .map((sessao) => {
+        const chamadaConcluida = presencas.some(
+          (registro) =>
+            registro.sessaoId === sessao.id && registro.status !== "Não marcado"
+        );
+        const tronco = lancamentos
+          .filter(
+            (lancamento) =>
+              lancamento.tipo === "Tronco de Solidariedade" && lancamento.sessaoId === sessao.id
+          )
+          .reduce((total, lancamento) => total + lancamento.valor, 0);
+        const balaustre = documentos.find(
+          (documento) => documento.sessaoId === sessao.id && documento.tipo === "Balaústre"
+        );
+
+        return {
+          sessao,
+          chamadaConcluida,
+          tronco,
+          balaustre,
+          pendencias: [
+            !chamadaConcluida ? "Frequência" : "",
+            tronco <= 0 ? "Tronco" : "",
+            !balaustre ? "Balaústre" : "",
+          ].filter(Boolean),
+        };
+      });
+  }, [sessoes, gestaoAtual, presencas, lancamentos, documentos]);
+
+  const resumoFluxoSessoes = useMemo(
+    () => ({
+      total: fluxoSessoes.length,
+      frequenciaPendente: fluxoSessoes.filter((item) => !item.chamadaConcluida).length,
+      troncoPendente: fluxoSessoes.filter((item) => item.tronco <= 0).length,
+      balaustrePendente: fluxoSessoes.filter((item) => !item.balaustre).length,
+    }),
+    [fluxoSessoes]
+  );
+
   const alertas = useMemo(() => {
     const lista = [];
 
@@ -682,6 +726,84 @@ export function DashboardClient() {
             <p className="mt-2 text-xs text-zinc-500">{detalhe}</p>
           </article>
         ))}
+      </section>
+
+      <section className="rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.09] to-white/[0.03] p-6">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-amber-300">Fluxo operacional</p>
+            <h3 className="mt-2 text-2xl font-bold">Acompanhamento das sessões</h3>
+            <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+              Confira o que falta concluir entre Secretaria, Chancelaria e Tesouraria antes de finalizar o Balaústre.
+            </p>
+          </div>
+          <Link
+            href="/secretaria#sessoes"
+            className="w-fit rounded-full border border-amber-400/35 px-5 py-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-400/10"
+          >
+            Criar sessão
+          </Link>
+        </div>
+
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[
+            ["Sessões", resumoFluxoSessoes.total, "text-white"],
+            ["Sem frequência", resumoFluxoSessoes.frequenciaPendente, "text-red-300"],
+            ["Sem Tronco", resumoFluxoSessoes.troncoPendente, "text-amber-300"],
+            ["Sem Balaústre", resumoFluxoSessoes.balaustrePendente, "text-sky-300"],
+          ].map(([titulo, valor, cor]) => (
+            <div key={String(titulo)} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+              <p className="text-sm text-zinc-400">{titulo}</p>
+              <p className={`mt-2 text-2xl font-bold ${cor}`}>{valor}</p>
+            </div>
+          ))}
+        </div>
+
+        {fluxoSessoes.length === 0 ? (
+          <div className="mt-5 rounded-2xl border border-dashed border-white/15 bg-black/10 p-6 text-sm text-zinc-400">
+            Nenhuma sessão cadastrada na gestão atual. Crie a primeira sessão na Secretaria para iniciar o fluxo.
+          </div>
+        ) : (
+          <div className="mt-5 grid gap-3">
+            {fluxoSessoes.slice(0, 6).map((item) => (
+              <article key={item.sessao.id} className="rounded-2xl border border-white/10 bg-black/20 p-4">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+                  <div>
+                    <p className="font-semibold text-white">
+                      {formatarDataBR(item.sessao.data)} · {item.sessao.titulo || item.sessao.tipo || "Sessão"}
+                    </p>
+                    <p className="mt-1 text-sm text-zinc-500">
+                      {item.pendencias.length > 0
+                        ? `Pendente: ${item.pendencias.join(", ")}`
+                        : "Fluxo concluído para esta sessão."}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 text-xs font-semibold">
+                    <Link
+                      href="/chancelaria#controle-frequencia"
+                      className={`rounded-full border px-3 py-2 transition ${item.chamadaConcluida ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-red-400/30 bg-red-400/10 text-red-300 hover:bg-red-400/20"}`}
+                    >
+                      {item.chamadaConcluida ? "Frequência concluída" : "Registrar frequência"}
+                    </Link>
+                    <Link
+                      href="/tesouraria#caixa"
+                      className={`rounded-full border px-3 py-2 transition ${item.tronco > 0 ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-amber-400/30 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20"}`}
+                    >
+                      {item.tronco > 0 ? `Tronco: ${formatarMoeda(item.tronco)}` : "Registrar Tronco"}
+                    </Link>
+                    <Link
+                      href="/secretaria#documentos"
+                      className={`rounded-full border px-3 py-2 transition ${item.balaustre ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300" : "border-sky-400/30 bg-sky-400/10 text-sky-300 hover:bg-sky-400/20"}`}
+                    >
+                      {item.balaustre ? `Balaústre: ${item.balaustre.status}` : "Gerar Balaústre"}
+                    </Link>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
 
       <section className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">

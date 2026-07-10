@@ -6,6 +6,7 @@ import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
 import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
+import { ModuleQuickNav } from "@/components/ModuleQuickNav";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -38,6 +39,15 @@ type Lancamento = {
   tipo: TipoLancamento;
   descricao: string;
   valor: number;
+  sessaoId?: string;
+};
+
+type Sessao = {
+  id: string;
+  data: string;
+  tipo?: string;
+  grau?: string;
+  titulo?: string;
 };
 
 type ParcelaCustoLoja = {
@@ -80,6 +90,7 @@ const lancamentoVazio = {
   tipo: "Tronco de Solidariedade" as TipoLancamento,
   descricao: "",
   valor: 0,
+  sessaoId: "",
 };
 
 const custoVazio = {
@@ -182,6 +193,7 @@ export function TesourariaClient() {
   const [novaRegra, setNovaRegra] = useState(regraVazia);
   const [pagamentosRapidos, setPagamentosRapidos] = useState<Record<string, string>>({});
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
+  const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [novoLancamento, setNovoLancamento] = useState(lancamentoVazio);
   const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
   const [novoCusto, setNovoCusto] = useState(custoVazio);
@@ -215,6 +227,7 @@ export function TesourariaClient() {
     setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
     setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
     setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
+    setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
     setSaldoAnterior(gestaoSalva.saldoLiquidoInicial);
     setCarregado(true);
@@ -299,6 +312,25 @@ export function TesourariaClient() {
       obreiro.nome.toLowerCase().includes(busca.toLowerCase())
     );
   }, [obreirosDaLoja, busca]);
+
+  const sessoesOrdenadas = useMemo(() => {
+    return [...sessoes].sort((a, b) => b.data.localeCompare(a.data));
+  }, [sessoes]);
+
+  function descricaoSessao(sessao: Sessao) {
+    return `${formatarDataBR(sessao.data)} — ${sessao.titulo || sessao.tipo || "Sessão"}`;
+  }
+
+  function selecionarSessaoTronco(sessaoId: string) {
+    const sessao = sessoes.find((item) => item.id === sessaoId);
+
+    setNovoLancamento((atual) => ({
+      ...atual,
+      sessaoId,
+      data: sessao?.data ?? atual.data,
+      descricao: sessao ? `Tronco de Solidariedade — ${descricaoSessao(sessao)}` : atual.descricao,
+    }));
+  }
 
   function recebidoNoMesDoObreiro(obreiroId: string) {
     return recebimentos
@@ -532,6 +564,22 @@ export function TesourariaClient() {
       return;
     }
 
+    if (novoLancamento.tipo === "Tronco de Solidariedade" && !novoLancamento.sessaoId) {
+      alert("Vincule o Tronco à sessão correspondente criada pela Secretaria.");
+      return;
+    }
+
+    if (
+      novoLancamento.tipo === "Tronco de Solidariedade" &&
+      lancamentos.some(
+        (item) =>
+          item.tipo === "Tronco de Solidariedade" && item.sessaoId === novoLancamento.sessaoId
+      )
+    ) {
+      alert("Esta sessão já possui um Tronco registrado. Remova o lançamento anterior antes de substituí-lo.");
+      return;
+    }
+
     setLancamentos((atuais) => [
       ...atuais,
       {
@@ -540,6 +588,10 @@ export function TesourariaClient() {
         tipo: novoLancamento.tipo,
         descricao: novoLancamento.descricao.trim(),
         valor: Number(novoLancamento.valor),
+        sessaoId:
+          novoLancamento.tipo === "Tronco de Solidariedade"
+            ? novoLancamento.sessaoId
+            : undefined,
       },
     ]);
 
@@ -717,7 +769,18 @@ export function TesourariaClient() {
 
   return (
     <div className="mt-8 space-y-6">
-      <section className="grid gap-4 md:grid-cols-2 treasury-summary-grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+      <ModuleQuickNav
+        titulo="Rotina financeira"
+        descricao="Priorize o caixa atual e depois registre as movimentações."
+        itens={[
+          { href: "#visao-financeira", titulo: "Visão financeira", descricao: "Saldo e alertas do período.", destaque: "amber" },
+          { href: "#mensalidades", titulo: "Mensalidades", descricao: "Cobrança e recebimentos.", destaque: "emerald" },
+          { href: "#custos", titulo: "Custos da Loja", descricao: "Obrigações e parcelas.", destaque: "sky" },
+          { href: "#caixa", titulo: "Caixa e Tronco", descricao: "Receitas, despesas e Tronco.", destaque: "amber" },
+        ]}
+      />
+
+      <section id="visao-financeira" className="scroll-mt-6 grid gap-4 md:grid-cols-2 treasury-summary-grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Mensalidade vigente</p>
           <h3 className="mt-3 font-bold text-amber-300 text-2xl max-w-full whitespace-nowrap tabular-nums tracking-tight leading-none">
@@ -769,7 +832,7 @@ export function TesourariaClient() {
         </article>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="vigencias" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Valor da Mensalidade por Vigência</h3>
         <p className="mt-2 text-sm text-zinc-400">
           Cadastre reajustes com data de início. O valor na linha do irmão é apenas informativo.
@@ -848,7 +911,7 @@ export function TesourariaClient() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="mensalidades" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
             <h3 className="text-2xl font-bold">Mensalidades</h3>
@@ -1039,7 +1102,7 @@ export function TesourariaClient() {
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="custos" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Custos Fixos e Obrigações da Loja</h3>
         <p className="mt-2 text-sm text-zinc-400">
           Cadastre dívidas, fornecedores, parcelas e vencimentos. Ao marcar uma parcela como paga, o valor é abatido automaticamente do saldo da Loja.
@@ -1280,7 +1343,7 @@ export function TesourariaClient() {
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+      <section id="caixa" className="scroll-mt-6 grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
           <h3 className="text-2xl font-bold">Saldo da Gestão</h3>
           <p className="mt-2 text-sm text-zinc-400">
@@ -1355,6 +1418,7 @@ export function TesourariaClient() {
                 setNovoLancamento((atual) => ({
                   ...atual,
                   tipo: evento.target.value as TipoLancamento,
+                  sessaoId: "",
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
@@ -1363,6 +1427,21 @@ export function TesourariaClient() {
               <option>Receita Extra</option>
               <option>Despesa</option>
             </select>
+
+            {novoLancamento.tipo === "Tronco de Solidariedade" && (
+              <select
+                value={novoLancamento.sessaoId}
+                onChange={(evento) => selecionarSessaoTronco(evento.target.value)}
+                className="rounded-xl border border-amber-400/30 bg-amber-400/[0.06] px-4 py-3 text-white outline-none focus:border-amber-400 md:col-span-2"
+              >
+                <option value="">Vincular à sessão da Secretaria</option>
+                {sessoesOrdenadas.map((sessao) => (
+                  <option key={sessao.id} value={sessao.id}>
+                    {descricaoSessao(sessao)}
+                  </option>
+                ))}
+              </select>
+            )}
 
             <input
               value={novoLancamento.descricao}
@@ -1399,6 +1478,7 @@ export function TesourariaClient() {
                   <th className="px-5 py-4">Data</th>
                   <th className="px-5 py-4">Tipo</th>
                   <th className="px-5 py-4">Descrição</th>
+                  <th className="px-5 py-4">Sessão vinculada</th>
                   <th className="px-5 py-4">Valor</th>
                   <th className="px-5 py-4">Ação</th>
                 </tr>
@@ -1410,6 +1490,15 @@ export function TesourariaClient() {
                     <td className="px-5 py-4 text-zinc-300">{formatarDataBR(item.data)}</td>
                     <td className="px-5 py-4 text-zinc-300">{item.tipo}</td>
                     <td className="px-5 py-4 text-white">{item.descricao}</td>
+                    <td className="px-5 py-4 text-zinc-300">
+                      {item.sessaoId
+                        ? descricaoSessao(sessoes.find((sessao) => sessao.id === item.sessaoId) ?? {
+                            id: "",
+                            data: item.data,
+                            titulo: "Sessão não localizada",
+                          })
+                        : "—"}
+                    </td>
                     <td
                       className={`px-5 py-4 font-bold ${
                         item.tipo === "Despesa" ? "text-red-300" : "text-emerald-300"
@@ -1431,7 +1520,7 @@ export function TesourariaClient() {
 
                 {lancamentos.length === 0 && (
                   <tr>
-                    <td colSpan={5} className="px-5 py-6 text-center text-zinc-500">
+                    <td colSpan={6} className="px-5 py-6 text-center text-zinc-500">
                       Nenhum lançamento cadastrado.
                     </td>
                   </tr>
