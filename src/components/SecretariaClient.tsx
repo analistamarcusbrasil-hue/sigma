@@ -4,6 +4,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { obreirosBase } from "@/lib/mock-data";
 import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
+import { ModuleQuickNav } from "@/components/ModuleQuickNav";
 import type { Obreiro, RegistroPresenca } from "@/types";
 
 type Sessao = {
@@ -13,6 +14,15 @@ type Sessao = {
   grau?: string;
   titulo?: string;
   observacao?: string;
+};
+
+type Lancamento = {
+  id: string;
+  data: string;
+  tipo: "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
+  descricao: string;
+  valor: number;
+  sessaoId?: string;
 };
 
 type CargosGestao = {
@@ -143,6 +153,31 @@ const pecaVazia: Omit<PecaArquitetura, "id"> = {
   observacao: "",
 };
 
+const sessaoVazia: Omit<Sessao, "id"> = {
+  data: "",
+  tipo: "Sessão Ordinária",
+  grau: "Aprendiz Maçom",
+  titulo: "",
+  observacao: "",
+};
+
+const tiposSessao = [
+  "Sessão Ordinária",
+  "Sessão Administrativa",
+  "Sessão Magna de Iniciação",
+  "Sessão Magna de Elevação",
+  "Sessão Magna de Exaltação",
+  "Sessão de Instrução",
+  "Sessão Especial",
+];
+
+const grausSessao = [
+  "Aprendiz Maçom",
+  "Companheiro Maçom",
+  "Mestre Maçom",
+  "Administrativa / Sem Grau",
+];
+
 function gerarId() {
   return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
 }
@@ -153,6 +188,10 @@ function formatarDataBR(dataISO: string) {
   if (partes.length !== 3) return dataISO;
   const [ano, mes, dia] = partes;
   return `${dia}/${mes}/${ano}`;
+}
+
+function formatarMoeda(valor: number) {
+  return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
 function lerLocalStorage<T>(chave: string, fallback: T): T {
@@ -232,6 +271,7 @@ function normalizarCargo(valor: string) {
 export function SecretariaClient() {
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
+  const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
   const [documentos, setDocumentos] = useState<DocumentoSecretaria[]>([]);
   const [acoes, setAcoes] = useState<AcaoPendente[]>([]);
@@ -242,6 +282,7 @@ export function SecretariaClient() {
   const [documentoAbertoId, setDocumentoAbertoId] = useState("");
   const [documentoEmEdicaoId, setDocumentoEmEdicaoId] = useState("");
   const [novoDocumento, setNovoDocumento] = useState(documentoVazio);
+  const [novaSessao, setNovaSessao] = useState(sessaoVazia);
   const [novaAcao, setNovaAcao] = useState(acaoVazia);
   const [novoProcesso, setNovoProcesso] = useState(processoVazio);
   const [novaPeca, setNovaPeca] = useState(pecaVazia);
@@ -253,6 +294,7 @@ export function SecretariaClient() {
     setObreiros(carregarObreiros());
     setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
     setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
+    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
     setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
     setAcoes(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
     setProcessos(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
@@ -260,6 +302,10 @@ export function SecretariaClient() {
     setDecisoes(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
     setCarregado(true);
   }, []);
+
+  useEffect(() => {
+    if (carregado) localStorage.setItem("sigma_sessoes", JSON.stringify(sessoes));
+  }, [sessoes, carregado]);
 
   useEffect(() => {
     if (carregado) localStorage.setItem("sigma_documentos_secretaria", JSON.stringify(documentos));
@@ -325,6 +371,56 @@ export function SecretariaClient() {
 
   function sessaoPorId(id: string) {
     return sessoes.find((sessao) => sessao.id === id);
+  }
+
+  function resumoPresencaDaSessao(sessaoId: string) {
+    const registros = presencas.filter((item) => item.sessaoId === sessaoId);
+    const presentes = registros.filter((item) => item.status === "Presente");
+
+    return {
+      presentes,
+      faltas: registros.filter((item) => item.status === "Falta").length,
+      justificados: registros.filter((item) => item.status === "Justificado").length,
+      naoMarcados: registros.filter((item) => item.status === "Não marcado").length,
+    };
+  }
+
+  function troncoDaSessao(sessaoId: string) {
+    return lancamentos
+      .filter(
+        (item) => item.tipo === "Tronco de Solidariedade" && item.sessaoId === sessaoId
+      )
+      .reduce((total, item) => total + item.valor, 0);
+  }
+
+  function cadastrarSessaoPelaSecretaria(evento: FormEvent<HTMLFormElement>) {
+    evento.preventDefault();
+
+    if (!novaSessao.data) {
+      alert("Informe a data da sessão.");
+      return;
+    }
+
+    const duplicada = sessoes.some(
+      (sessao) => sessao.data === novaSessao.data && sessao.tipo === novaSessao.tipo
+    );
+
+    if (duplicada) {
+      alert("Já existe uma sessão desse tipo cadastrada nessa data.");
+      return;
+    }
+
+    const nova: Sessao = {
+      id: gerarId(),
+      data: novaSessao.data,
+      tipo: novaSessao.tipo,
+      grau: novaSessao.grau,
+      titulo: novaSessao.titulo?.trim() || `${formatarDataBR(novaSessao.data)} - ${novaSessao.tipo}`,
+      observacao: novaSessao.observacao?.trim() || "",
+    };
+
+    setSessoes((atuais) => [...atuais, nova]);
+    setNovaSessao(sessaoVazia);
   }
 
     function nomeCargoSessao(cargoBuscado: string, sessaoId: string) {
@@ -402,6 +498,9 @@ function montarBalaustrePadrao(documento: Omit<DocumentoSecretaria, "id"> | Docu
     const grau = documento.grau || sessao?.grau || "Grau não informado";
     const veneravelMestre = nomePorCargoDaSessao(documento.sessaoId, ["veneravel"]);
     const secretarioSessao = nomePorCargoDaSessao(documento.sessaoId, ["secretario"]);
+    const frequencia = resumoPresencaDaSessao(documento.sessaoId);
+    const nomesPresentes = frequencia.presentes.map((item) => nomeObreiro(item.obreiroId));
+    const troncoRegistrado = troncoDaSessao(documento.sessaoId);
     const decisoesTexto = separarDecisoes(documento.decisoesLoja);
 
     const decisoesFormatadas =
@@ -421,6 +520,13 @@ COMPOSIÇÃO DA SESSÃO
 Venerável Mestre: ${veneravelMestre}
 Secretário: ${secretarioSessao}
 
+REGISTRO DE FREQUÊNCIA DA CHANCELARIA
+Presentes: ${frequencia.presentes.length}
+Faltas: ${frequencia.faltas}
+Justificados: ${frequencia.justificados}
+Não marcados: ${frequencia.naoMarcados}
+Obreiros presentes: ${nomesPresentes.length > 0 ? nomesPresentes.join(", ") : "Chamada ainda não registrada."}
+
 RELATO DA SESSÃO
 ${documento.relatoBruto || "Relato bruto ainda não informado."}
 
@@ -431,7 +537,8 @@ DELIBERAÇÕES E DECISÕES DA LOJA
 ${decisoesFormatadas}
 
 TRONCO DE SOLIDARIEDADE
-${documento.tronco || "Não informado."}
+Valor arrecadado na sessão: ${troncoRegistrado > 0 ? formatarMoeda(troncoRegistrado) : "Não há Tronco registrado pela Tesouraria."}
+${documento.tronco ? `Observação da Secretaria: ${documento.tronco}` : ""}
 
 OBSERVAÇÕES DA SECRETARIA
 ${documento.observacoes || "Nada mais havendo a registrar, o presente documento segue para revisão e aprovação."}
@@ -481,6 +588,7 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
       resumo:
         atual.resumo ||
         `Sessão realizada em ${formatarDataBR(sessao?.data ?? "")}, em ${sessao?.grau || "grau não informado"}, conforme registros da Loja.`,
+      textoGerado: "",
     }));
   }
 
@@ -804,10 +912,73 @@ ${base}`;
         </article>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <ModuleQuickNav
+        titulo="Organize os trabalhos da Secretaria"
+        descricao="Siga a ordem natural da sessão até o documento oficial."
+        itens={[
+          { href: "#sessoes", titulo: "1. Sessões", descricao: "Crie a sessão integrada da Loja.", destaque: "amber" },
+          { href: "#documentos", titulo: "2. Documentos", descricao: "Monte Atas e Balaústres.", destaque: "emerald" },
+          { href: "#rotinas", titulo: "3. Rotinas", descricao: "Ações, processos e responsáveis.", destaque: "sky" },
+          { href: "#arquitetura", titulo: "4. Arquitetura", descricao: "Acompanhe as peças previstas.", destaque: "amber" },
+        ]}
+      />
+
+      <section id="sessoes" className="scroll-mt-6 rounded-3xl border border-amber-400/20 bg-amber-400/[0.04] p-6">
+        <div className="flex flex-col gap-2 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-amber-300">Integração da Loja</p>
+            <h3 className="mt-2 text-2xl font-bold">Cadastro de sessões</h3>
+            <p className="mt-2 max-w-3xl text-sm text-zinc-400">
+              Cadastre a sessão uma única vez. Ela ficará disponível para a chamada da Chancelaria,
+              o lançamento do Tronco na Tesouraria e a geração do Balaústre.
+            </p>
+          </div>
+          <span className="w-fit rounded-full border border-amber-400/30 bg-amber-400/10 px-4 py-2 text-sm text-amber-200">
+            {sessoes.length} sessão(ões) integrada(s)
+          </span>
+        </div>
+
+        <form onSubmit={cadastrarSessaoPelaSecretaria} className="mt-6 grid gap-3 lg:grid-cols-5">
+          <input
+            type="date"
+            value={novaSessao.data}
+            onChange={(evento) => setNovaSessao((atual) => ({ ...atual, data: evento.target.value }))}
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            aria-label="Data da sessão"
+          />
+          <select
+            value={novaSessao.tipo}
+            onChange={(evento) => setNovaSessao((atual) => ({ ...atual, tipo: evento.target.value }))}
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            aria-label="Tipo de sessão"
+          >
+            {tiposSessao.map((tipo) => <option key={tipo}>{tipo}</option>)}
+          </select>
+          <select
+            value={novaSessao.grau}
+            onChange={(evento) => setNovaSessao((atual) => ({ ...atual, grau: evento.target.value }))}
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            aria-label="Grau da sessão"
+          >
+            {grausSessao.map((grau) => <option key={grau}>{grau}</option>)}
+          </select>
+          <input
+            value={novaSessao.titulo ?? ""}
+            onChange={(evento) => setNovaSessao((atual) => ({ ...atual, titulo: evento.target.value }))}
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            placeholder="Título (opcional)"
+          />
+          <button type="submit" className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300">
+            Criar sessão integrada
+          </button>
+        </form>
+      </section>
+
+      <section id="documentos" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Atas e Balaústres</h3>
         <p className="mt-2 text-sm text-zinc-400">
-          Cadastre documentos oficiais vinculados às sessões registradas na Chancelaria.
+          Cadastre documentos oficiais vinculados às sessões. Ao gerar o Balaústre, a frequência da
+          Chancelaria e o Tronco da Tesouraria serão preenchidos automaticamente.
         </p>
 
         <form onSubmit={salvarDocumento} className="mt-6 grid gap-3">
@@ -919,7 +1090,7 @@ ${base}`;
                 setNovoDocumento((atual) => ({ ...atual, tronco: evento.target.value }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Tronco de solidariedade / registro financeiro da sessão"
+              placeholder="Observação adicional sobre o Tronco (o valor vem da Tesouraria)"
             />
 
             <button
@@ -1062,7 +1233,7 @@ ${base}`;
         </div>
       </section>
 
-      <section className="grid gap-6 xl:grid-cols-2">
+      <section id="rotinas" className="scroll-mt-6 grid gap-6 xl:grid-cols-2">
         <div className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
           <h3 className="text-2xl font-bold">Ações Pendentes</h3>
           <p className="mt-2 text-sm text-zinc-400">
@@ -1301,7 +1472,7 @@ ${base}`;
         </div>
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="arquitetura" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Peças de Arquitetura</h3>
         <p className="mt-2 text-sm text-zinc-400">
           Controle das peças previstas, apresentadas ou adiadas.

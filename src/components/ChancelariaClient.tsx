@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { obreirosBase } from "@/lib/mock-data";
 import { carregarObreiros, normalizarObreiros, salvarObreiros } from "@/lib/obreiros";
+import { ModuleQuickNav } from "@/components/ModuleQuickNav";
 import type { Obreiro, RegistroPresenca, StatusPresenca } from "@/types";
 
 type Sessao = {
@@ -727,9 +728,21 @@ export function ChancelariaClient() {
 
   return (
     <div className="mt-8 space-y-6">
+      <ModuleQuickNav
+        titulo="Rotina de frequência"
+        descricao="Cadastre a sessão, faça a chamada e acompanhe o histórico."
+        itens={[
+          { href: "#sessao", titulo: "1. Sessão", descricao: "Crie ou ajuste os dados da sessão.", destaque: "amber" },
+          { href: "#controle-frequencia", titulo: "2. Chamada", descricao: "Registre presenças e cargos.", destaque: "emerald" },
+          { href: "#relatorio-frequencia", titulo: "3. Relatório", descricao: "Analise a regularidade dos obreiros.", destaque: "sky" },
+          { href: "#historico-sessoes", titulo: "4. Histórico", descricao: "Consulte sessões anteriores.", destaque: "amber" },
+        ]}
+      />
+
       <form
+        id="sessao"
         onSubmit={cadastrarSessao}
-        className="rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-white/[0.03] p-6"
+        className="scroll-mt-6 rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-white/[0.03] p-6"
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -1198,7 +1211,7 @@ export function ChancelariaClient() {
 
         {sessaoAtual && aba === "relatorio" && (
           <>
-            <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5">
+            <div id="relatorio-frequencia" className="mt-6 scroll-mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5">
               <h4 className="font-bold text-amber-300">Relatório dos últimos 12 meses</h4>
               <p className="mt-2 text-sm text-zinc-300">
                 Presença conta positivamente. Falta sem justificativa conta contra. Justificado e Não marcado não derrubam a frequência.
@@ -1264,7 +1277,7 @@ export function ChancelariaClient() {
         )}
       </section>
 
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="historico-sessoes" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
