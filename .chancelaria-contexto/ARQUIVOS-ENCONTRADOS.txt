@@ -1,0 +1,15 @@
+next.config.ts
+package.json
+src/app/chancelaria/page.tsx
+src/app/globals.css
+src/app/layout.tsx
+src/components/AppShell.tsx
+src/components/ChancelariaClient.tsx
+src/components/DashboardClient.tsx
+src/components/LoginClient.tsx
+src/components/SecretariaClient.tsx
+src/lib/auth.ts
+src/lib/mock-data.ts
+src/lib/obreiros.ts
+src/types/index.ts
+tsconfig.json

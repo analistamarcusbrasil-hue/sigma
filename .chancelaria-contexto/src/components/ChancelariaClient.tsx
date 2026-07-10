@@ -149,7 +149,6 @@ export function ChancelariaClient() {
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [sessaoSelecionada, setSessaoSelecionada] = useState("");
   const [novaSessao, setNovaSessao] = useState(sessaoVazia);
-  const [sessaoEmEdicao, setSessaoEmEdicao] = useState<string | null>(null);
   const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
   const [carregado, setCarregado] = useState(false);
@@ -366,7 +365,8 @@ export function ChancelariaClient() {
       return;
     }
 
-    const dadosSessao = {
+    const nova: Sessao = {
+      id: gerarId(),
       data: novaSessao.data,
       tipo: novaSessao.tipo,
       grau: novaSessao.grau,
@@ -376,85 +376,25 @@ export function ChancelariaClient() {
       observacao: novaSessao.observacao.trim(),
     };
 
-    if (sessaoEmEdicao) {
-      setSessoes((atuais) =>
-        atuais.map((sessao) =>
-          sessao.id === sessaoEmEdicao ? { ...sessao, ...dadosSessao } : sessao
-        )
-      );
-      setSessaoSelecionada(sessaoEmEdicao);
-      setSessaoEmEdicao(null);
-      setNovaSessao(sessaoVazia);
-      return;
-    }
-
-    const nova: Sessao = {
-      id: gerarId(),
-      ...dadosSessao,
-    };
-
     setSessoes((atuais) => [...atuais, nova]);
     setSessaoSelecionada(nova.id);
     setNovaSessao(sessaoVazia);
   }
 
-  function iniciarEdicaoSessao(sessao: Sessao) {
-    // Seleciona de fato a sessão clicada antes de editar
-    setSessaoSelecionada(sessao.id);
-    setAba("chamada");
-    window.setTimeout(() => {
-      window.scrollTo({ top: 0, behavior: "smooth" });
-    }, 0);
-
-    setSessaoEmEdicao(sessao.id);
-    setNovaSessao({
-      data: sessao.data,
-      tipo: sessao.tipo,
-      grau: sessao.grau,
-      titulo: sessao.titulo,
-      observacao: sessao.observacao,
-    });
-    window.scrollTo({ top: 0, behavior: "smooth" });
-  }
-
-  function cancelarEdicaoSessao() {
-    setSessaoEmEdicao(null);
-    setNovaSessao(sessaoVazia);
-  }
-
-  function abrirSessao(sessaoId: string) {
-    setSessaoSelecionada(sessaoId);
-    setAba("chamada");
-    requestAnimationFrame(() => {
-      document.getElementById("controle-frequencia")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  }
-
-  function removerSessaoPorId(sessaoId: string) {
-    const sessao = sessoes.find((item) => item.id === sessaoId);
-    if (!sessao) return;
+  function removerSessao() {
+    if (!sessaoAtual) return;
 
     const confirmar = confirm(
-      `Deseja remover a sessão "${sessao.titulo}"? Os registros de presença dela também serão removidos.`
+      `Deseja remover a sessão "${sessaoAtual.titulo}"? Os registros de presença dela também serão removidos.`
     );
 
     if (!confirmar) return;
 
-    const restantes = sessoesOrdenadas.filter((item) => item.id !== sessaoId);
+    const restantes = sessoesOrdenadas.filter((sessao) => sessao.id !== sessaoAtual.id);
 
     setSessoes(restantes);
-    setPresencas((atuais) => atuais.filter((item) => item.sessaoId !== sessaoId));
-
-    if (sessaoSelecionada === sessaoId) {
-      setSessaoSelecionada(restantes.at(-1)?.id ?? "");
-    }
-
-    if (sessaoEmEdicao === sessaoId) {
-      cancelarEdicaoSessao();
-    }
+    setPresencas((atuais) => atuais.filter((item) => item.sessaoId !== sessaoAtual.id));
+    setSessaoSelecionada(restantes.at(-1)?.id ?? "");
   }
 
   function atualizarRegistro(
@@ -707,133 +647,9 @@ export function ChancelariaClient() {
     baixarArquivo("relatorio-frequencia-12-meses.csv", csv);
   }
 
-
-  function resumoHistoricoSessao(sessaoId: string) {
-    const registros = presencas.filter((item) => item.sessaoId === sessaoId);
-    const presentes = registros.filter((item) => item.status === "Presente").length;
-    const faltas = registros.filter((item) => item.status === "Falta").length;
-    const justificados = registros.filter((item) => item.status === "Justificado").length;
-    const marcados = presentes + faltas + justificados;
-    const percentual = marcados > 0 ? Math.round((presentes / marcados) * 100) : 0;
-
-    return {
-      presentes,
-      faltas,
-      justificados,
-      marcados,
-      percentual,
-    };
-  }
-
   return (
     <div className="mt-8 space-y-6">
-      <form
-        onSubmit={cadastrarSessao}
-        className="rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-white/[0.03] p-6"
-      >
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
-              1. Cadastro
-            </p>
-            <h3 className="mt-2 text-2xl font-bold">
-              {sessaoEmEdicao ? "Editar sessão" : "Criar nova sessão"}
-            </h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              Informe os dados da sessão. Após salvar, ela será aberta automaticamente para a chamada.
-            </p>
-          </div>
-
-          {sessaoEmEdicao && (
-            <button
-              type="button"
-              onClick={cancelarEdicaoSessao}
-              className="rounded-full border border-white/10 px-5 py-2.5 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
-            >
-              Cancelar edição
-            </button>
-          )}
-        </div>
-
-        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Data da sessão</span>
-            <input
-              type="date"
-              value={novaSessao.data}
-              onChange={(evento) =>
-                setNovaSessao((atual) => ({ ...atual, data: evento.target.value }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            />
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Tipo</span>
-            <select
-              value={novaSessao.tipo}
-              onChange={(evento) =>
-                setNovaSessao((atual) => ({ ...atual, tipo: evento.target.value }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            >
-              {tiposSessao.map((tipo) => (
-                <option key={tipo}>{tipo}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Grau</span>
-            <select
-              value={novaSessao.grau}
-              onChange={(evento) =>
-                setNovaSessao((atual) => ({ ...atual, grau: evento.target.value }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            >
-              {grausSessao.map((grau) => (
-                <option key={grau}>{grau}</option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Título</span>
-            <input
-              value={novaSessao.titulo}
-              onChange={(evento) =>
-                setNovaSessao((atual) => ({ ...atual, titulo: evento.target.value }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Opcional"
-            />
-          </label>
-        </div>
-
-        <div className="mt-4 grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
-          <label className="space-y-2">
-            <span className="text-sm font-medium text-zinc-300">Observação</span>
-            <input
-              value={novaSessao.observacao}
-              onChange={(evento) =>
-                setNovaSessao((atual) => ({ ...atual, observacao: evento.target.value }))
-              }
-              className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Informação opcional sobre a sessão"
-            />
-          </label>
-
-          <button
-            type="submit"
-            className="rounded-full bg-amber-400 px-7 py-3 font-semibold text-black transition hover:bg-amber-300"
-          >
-            {sessaoEmEdicao ? "Salvar alterações" : "Criar sessão"}
-          </button>
-        </div>
-      </form>
-
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Sessões</p>
           <h3 className="mt-3 text-3xl font-bold text-amber-300">{sessoes.length}</h3>
@@ -843,13 +659,13 @@ export function ChancelariaClient() {
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Visitantes</p>
           <h3 className="mt-3 text-3xl font-bold text-sky-300">{resumoSessao.visitantes}</h3>
-          <p className="mt-2 text-sm text-zinc-500">Na sessão atual</p>
+          <p className="mt-2 text-sm text-zinc-500">Na sessão</p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Presentes</p>
           <h3 className="mt-3 text-3xl font-bold text-emerald-300">{resumoSessao.presentes}</h3>
-          <p className="mt-2 text-sm text-zinc-500">Na sessão atual</p>
+          <p className="mt-2 text-sm text-zinc-500">Na sessão</p>
         </article>
 
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
@@ -867,22 +683,77 @@ export function ChancelariaClient() {
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Frequência</p>
           <h3 className="mt-3 text-3xl font-bold text-amber-300">{percentualPresenca}%</h3>
-          <p className="mt-2 text-sm text-zinc-500">Da sessão atual</p>
+          <p className="mt-2 text-sm text-zinc-500">Da sessão</p>
         </article>
       </section>
 
-      <section
-        id="controle-frequencia"
-        className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6"
+      <form
+        onSubmit={cadastrarSessao}
+        className="rounded-3xl border border-white/10 bg-white/[0.04] p-6"
       >
+        <h3 className="text-2xl font-bold">Cadastrar Sessão</h3>
+        <p className="mt-2 text-sm text-zinc-400">
+          Cadastre sessões ordinárias, administrativas, magnas ou especiais conforme a necessidade da Loja.
+        </p>
+
+        <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+          <input
+            type="date"
+            value={novaSessao.data}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, data: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          />
+
+          <select
+            value={novaSessao.tipo}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, tipo: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          >
+            {tiposSessao.map((tipo) => (
+              <option key={tipo}>{tipo}</option>
+            ))}
+          </select>
+
+          <select
+            value={novaSessao.grau}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, grau: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+          >
+            {grausSessao.map((grau) => (
+              <option key={grau}>{grau}</option>
+            ))}
+          </select>
+
+          <input
+            value={novaSessao.titulo}
+            onChange={(evento) =>
+              setNovaSessao((atual) => ({ ...atual, titulo: evento.target.value }))
+            }
+            className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
+            placeholder="Título opcional"
+          />
+
+          <button
+            type="submit"
+            className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
+          >
+            Criar sessão
+          </button>
+        </div>
+      </form>
+
+      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
-              2. Chamada atual
-            </p>
-            <h3 className="mt-2 text-2xl font-bold">Controle de Frequência</h3>
+            <h3 className="text-2xl font-bold">Controle de Frequência</h3>
             <p className="mt-2 text-sm text-zinc-400">
-              Selecione uma sessão, registre as presenças, cargos e observações.
+              Presença por sessão, cargo ocupado, visitantes e score individual.
             </p>
           </div>
 
@@ -911,39 +782,13 @@ export function ChancelariaClient() {
 
         {!sessaoAtual && (
           <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/10 p-5 text-amber-200">
-            Crie uma sessão no formulário acima para iniciar a chamada.
+            Cadastre uma sessão para iniciar a chamada.
           </div>
         )}
 
         {sessaoAtual && aba === "chamada" && (
           <>
-            <div className="mt-6 rounded-2xl border border-amber-400/20 bg-amber-400/[0.07] p-5">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-amber-300">Sessão selecionada</p>
-                  <h4 className="mt-1 text-xl font-bold text-white">{sessaoAtual.titulo}</h4>
-                  <p className="mt-1 text-sm text-zinc-400">
-                    {formatarDataBR(sessaoAtual.data)} · {sessaoAtual.tipo} · {sessaoAtual.grau}
-                  </p>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSessaoSelecionada(sessaoAtual.id);
-                    iniciarEdicaoSessao(sessaoAtual);
-                    window.setTimeout(() => {
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }, 0);
-                  }}
-                  className="rounded-full border border-amber-400/30 px-5 py-2.5 text-sm font-semibold text-amber-300 transition hover:bg-amber-400/10"
-                >
-                  Editar dados da sessão
-                </button>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-4 md:grid-cols-3">
+            <div className="mt-6 grid gap-4 md:grid-cols-3">
               <select
                 value={sessaoSelecionada}
                 onChange={(evento) => setSessaoSelecionada(evento.target.value)}
@@ -1004,19 +849,25 @@ export function ChancelariaClient() {
                 onClick={() => marcarTodos("Não marcado")}
                 className="rounded-full border border-white/10 px-5 py-3 text-sm font-semibold text-zinc-300 transition hover:bg-white/10"
               >
-                Limpar chamada
+                Limpar
+              </button>
+
+              <button
+                type="button"
+                onClick={removerSessao}
+                className="rounded-full border border-red-400/30 px-5 py-3 text-sm font-semibold text-red-300 transition hover:bg-red-400/10"
+              >
+                Remover sessão
               </button>
             </div>
 
-            <details className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/[0.07] p-5">
-              <summary className="cursor-pointer font-bold text-sky-300">
-                Cadastrar visitante em sessão
-              </summary>
+            <div className="mt-6 rounded-2xl border border-sky-400/20 bg-sky-400/10 p-5">
+              <h4 className="font-bold text-sky-300">Visitante em sessão</h4>
               <p className="mt-2 text-sm text-zinc-300">
-                Abra esta área somente quando houver visitante para incluir na chamada.
+                Cadastre o visitante com dados básicos para ele entrar na chamada da sessão.
               </p>
 
-              <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+              <div className="mt-4 grid gap-3 md:grid-cols-5">
                 <input
                   value={visitante.nome}
                   onChange={(evento) =>
@@ -1064,7 +915,7 @@ export function ChancelariaClient() {
                   Cadastrar visitante
                 </button>
               </div>
-            </details>
+            </div>
 
             {obreirosEmAtencao.length > 0 && (
               <div className="mt-6 rounded-2xl border border-red-400/20 bg-red-400/10 p-5">
@@ -1261,111 +1112,6 @@ export function ChancelariaClient() {
               </button>
             </div>
           </>
-        )}
-      </section>
-
-      <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-amber-300">
-              3. Histórico
-            </p>
-            <h3 className="mt-2 text-2xl font-bold">Sessões cadastradas</h3>
-            <p className="mt-2 text-sm text-zinc-400">
-              As sessões mais recentes aparecem primeiro. Abra para lançar frequência, edite os dados ou exclua quando necessário.
-            </p>
-          </div>
-          <span className="w-fit rounded-full border border-white/10 bg-black/20 px-4 py-2 text-sm text-zinc-300">
-            {sessoes.length} {sessoes.length === 1 ? "sessão" : "sessões"}
-          </span>
-        </div>
-
-        {sessoesExibicao.length === 0 ? (
-          <div className="mt-6 rounded-2xl border border-dashed border-white/10 p-8 text-center text-zinc-400">
-            Nenhuma sessão cadastrada ainda.
-          </div>
-        ) : (
-          <div className="mt-6 space-y-3">
-            {sessoesExibicao.map((sessao) => {
-              const resumo = resumoHistoricoSessao(sessao.id);
-              const selecionada = sessao.id === sessaoSelecionada;
-
-              return (
-                <article
-                  key={sessao.id}
-                  className={`rounded-2xl border p-5 transition ${
-                    selecionada
-                      ? "border-amber-400/40 bg-amber-400/[0.08]"
-                      : "border-white/10 bg-black/20 hover:border-white/20"
-                  }`}
-                >
-                  <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="truncate text-lg font-bold text-white">{sessao.titulo}</h4>
-                        {selecionada && (
-                          <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-300">
-                            Sessão atual
-                          </span>
-                        )}
-                      </div>
-                      <p className="mt-2 text-sm text-zinc-400">
-                        {formatarDataBR(sessao.data)} · {sessao.tipo} · {sessao.grau}
-                      </p>
-                      {sessao.observacao && (
-                        <p className="mt-2 text-sm text-zinc-500">{sessao.observacao}</p>
-                      )}
-
-                      <div className="mt-4 flex flex-wrap gap-2 text-xs font-semibold">
-                        <span className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-emerald-300">
-                          {resumo.presentes} presentes
-                        </span>
-                        <span className="rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1.5 text-red-300">
-                          {resumo.faltas} faltas
-                        </span>
-                        <span className="rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1.5 text-amber-300">
-                          {resumo.justificados} justificadas
-                        </span>
-                        <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-zinc-300">
-                          {resumo.marcados > 0 ? `${resumo.percentual}% de presença` : "Chamada não iniciada"}
-                        </span>
-                      </div>
-                    </div>
-
-                    <div className="flex flex-wrap gap-2 xl:justify-end">
-                      <button
-                        type="button"
-                        onClick={() => abrirSessao(sessao.id)}
-                        className="rounded-full bg-amber-400 px-5 py-2.5 text-sm font-semibold text-black transition hover:bg-amber-300"
-                      >
-                        Abrir chamada
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                    setSessaoSelecionada(sessao.id);
-                    iniciarEdicaoSessao(sessao);
-                    window.setTimeout(() => {
-                      window.scrollTo({ top: 0, behavior: "smooth" });
-                    }, 0);
-                  }}
-                        className="rounded-full border border-white/10 px-5 py-2.5 text-sm font-semibold text-zinc-200 transition hover:bg-white/10"
-                      >
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => removerSessaoPorId(sessao.id)}
-                        className="rounded-full border border-red-400/30 px-5 py-2.5 text-sm font-semibold text-red-300 transition hover:bg-red-400/10"
-                      >
-                        Excluir
-                      </button>
-                    </div>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
         )}
       </section>
     </div>
