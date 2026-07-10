@@ -1,0 +1,10 @@
+"use client";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { createClient } from "@/lib/supabase/client";
+
+export function RedefinirSenhaClient() {
+  const router = useRouter(); const [senha, setSenha] = useState(""); const [confirmacao, setConfirmacao] = useState(""); const [erro, setErro] = useState(""); const [sucesso, setSucesso] = useState(false);
+  async function salvar(e: React.FormEvent<HTMLFormElement>) { e.preventDefault(); if (senha.length < 8) return setErro("A senha deve ter ao menos 8 caracteres."); if (senha !== confirmacao) return setErro("As senhas não coincidem."); setErro(""); const { error } = await createClient().auth.updateUser({ password: senha }); if (error) return setErro("Não foi possível atualizar a senha. Solicite um novo link."); setSucesso(true); window.setTimeout(() => router.replace("/login"), 1800); }
+  return <main className="min-h-screen bg-[#070707] px-4 py-8 text-white"><section className="mx-auto mt-20 max-w-md rounded-[2rem] border border-white/10 bg-white/[0.04] p-8"><h1 className="text-3xl font-bold">Definir nova senha</h1>{sucesso ? <p className="mt-5 rounded-xl bg-emerald-400/10 p-4 text-emerald-200">Senha atualizada. Redirecionando para o login...</p> : <form onSubmit={salvar} className="mt-6 space-y-4">{erro && <p className="rounded-xl bg-red-400/10 p-3 text-sm text-red-100">{erro}</p>}<input required minLength={8} type="password" value={senha} onChange={(e) => setSenha(e.target.value)} placeholder="Nova senha (mínimo 8 caracteres)" className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-amber-400"/><input required minLength={8} type="password" value={confirmacao} onChange={(e) => setConfirmacao(e.target.value)} placeholder="Confirmar nova senha" className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 outline-none focus:border-amber-400"/><button className="w-full rounded-full bg-amber-400 px-5 py-3 font-bold text-black">Atualizar senha</button></form>}</section></main>;
+}

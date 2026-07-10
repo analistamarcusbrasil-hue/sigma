@@ -3,113 +3,37 @@ export type PerfilUsuario =
   | "Venerável Mestre"
   | "Secretário"
   | "Tesoureiro"
-  | "Chanceler";
+  | "Chanceler"
+  | "Obreiro";
 
-export type UsuarioSigma = {
+export type StatusPerfil = "convite_enviado" | "ativo" | "suspenso" | "revogado";
+
+export type PerfilSigma = {
   id: string;
+  obreiro_id: string | null;
   nome: string;
-  login: string;
-  senha: string;
+  email: string;
   perfil: PerfilUsuario;
-  ativo: boolean;
+  status: StatusPerfil;
+  permissoes: string[];
+  convite_enviado_em: string | null;
+  ativado_em: string | null;
+  ultimo_acesso_em: string | null;
 };
-
-export type UsuarioLogado = Omit<UsuarioSigma, "senha">;
-
-export const chaveUsuarios = "sigma_usuarios";
-export const chaveUsuarioLogado = "sigma_usuario_logado";
-
-export const usuariosPadrao: UsuarioSigma[] = [
-  {
-    id: "admin",
-    nome: "Administrador SIGMA",
-    login: "admin",
-    senha: "admin123",
-    perfil: "Administrador",
-    ativo: true,
-  },
-  {
-    id: "vm",
-    nome: "Venerável Mestre",
-    login: "veneravel",
-    senha: "vm123",
-    perfil: "Venerável Mestre",
-    ativo: true,
-  },
-  {
-    id: "secretario",
-    nome: "Secretário da Loja",
-    login: "secretario",
-    senha: "sec123",
-    perfil: "Secretário",
-    ativo: true,
-  },
-  {
-    id: "tesoureiro",
-    nome: "Tesoureiro da Loja",
-    login: "tesoureiro",
-    senha: "tes123",
-    perfil: "Tesoureiro",
-    ativo: true,
-  },
-  {
-    id: "chanceler",
-    nome: "Chanceler da Loja",
-    login: "chanceler",
-    senha: "chan123",
-    perfil: "Chanceler",
-    ativo: true,
-  },
-];
 
 export const permissoesPorPerfil: Record<PerfilUsuario, string[]> = {
-  Administrador: [
-    "/dashboard",
-    "/obreiros",
-    "/tesouraria",
-    "/chancelaria",
-    "/secretaria",
-    "/prestacao-contas",
-    "/configuracoes",
-    "/backup",
-  ],
-  "Venerável Mestre": [
-    "/dashboard",
-    "/obreiros",
-    "/tesouraria",
-    "/chancelaria",
-    "/secretaria",
-    "/prestacao-contas",
-  ],
-  Secretário: [
-    "/dashboard",
-    "/obreiros",
-    "/chancelaria",
-    "/secretaria",
-    "/prestacao-contas",
-  ],
-  Tesoureiro: [
-    "/dashboard",
-    "/obreiros",
-    "/tesouraria",
-    "/prestacao-contas",
-  ],
-  Chanceler: [
-    "/dashboard",
-    "/obreiros",
-    "/chancelaria",
-  ],
+  Administrador: ["/dashboard", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/configuracoes", "/backup", "/usuarios"],
+  "Venerável Mestre": ["/dashboard", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas"],
+  Secretário: ["/dashboard", "/obreiros", "/chancelaria", "/secretaria", "/prestacao-contas"],
+  Tesoureiro: ["/dashboard", "/obreiros", "/tesouraria", "/prestacao-contas"],
+  Chanceler: ["/dashboard", "/obreiros", "/chancelaria"],
+  Obreiro: ["/dashboard"],
 };
 
-export function podeAcessarModulo(perfil: PerfilUsuario, rota: string) {
-  const permissoes = permissoesPorPerfil[perfil] ?? [];
-
-  return permissoes.some((permitida) => {
-    return rota === permitida || rota.startsWith(`${permitida}/`);
-  });
+export function permissoesPadrao(perfil: PerfilUsuario) {
+  return permissoesPorPerfil[perfil];
 }
 
-export function usuarioSemSenha(usuario: UsuarioSigma): UsuarioLogado {
-  const { senha, ...semSenha } = usuario;
-  return semSenha;
+export function podeAcessarModulo(permissoes: string[], rota: string) {
+  return permissoes.some((permitida) => rota === permitida || rota.startsWith(`${permitida}/`));
 }

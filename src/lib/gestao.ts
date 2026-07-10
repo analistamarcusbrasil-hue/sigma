@@ -72,7 +72,7 @@ export function obterGestaoAtualDoStorage(): GestaoAtiva {
     };
   }
 
-  const configAntiga = lerLocalStorage<any>("sigma_configuracao_gestao", {});
+  const configAntiga = lerLocalStorage<Record<string, string>>("sigma_configuracao_gestao", {});
   const saldoAntigo = Number(localStorage.getItem("sigma_saldo_anterior") ?? 0);
   const anoSalvo = Number(localStorage.getItem("sigma_ano_trabalho") ?? anoAtual);
 
