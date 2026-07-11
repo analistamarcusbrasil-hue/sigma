@@ -3,6 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
+import { FormField } from "@/components/ui/FormField";
 import { carregarSecretaria, carregarTesouraria, excluirAcaoSecretaria, excluirPecaArquitetura, excluirProcessoSecretaria, listarGestoes, listarObreiros, listarPresencas, listarSessoes, removerDocumentoSecretaria, salvarAcaoSecretaria, salvarDocumentoComDecisoes, salvarPecaArquitetura, salvarProcessoSecretaria, salvarSessao } from "@/lib/supabase/operacional";
 import type { Obreiro, RegistroPresenca, Sessao } from "@/types";
 
@@ -914,35 +915,35 @@ ${base}`;
         </div>
 
         <form onSubmit={cadastrarSessaoPelaSecretaria} className="mt-6 grid gap-3 lg:grid-cols-5">
-          <input
+          <FormField id="secretaria-sessao-data" label="Data da sessão" required><input id="secretaria-sessao-data"
             type="date"
             value={novaSessao.data}
             onChange={(evento) => setNovaSessao((atual) => ({ ...atual, data: evento.target.value }))}
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             aria-label="Data da sessão"
-          />
-          <select
+          /></FormField>
+          <FormField id="secretaria-sessao-tipo" label="Tipo da sessão" required><select id="secretaria-sessao-tipo"
             value={novaSessao.tipo}
             onChange={(evento) => setNovaSessao((atual) => ({ ...atual, tipo: evento.target.value }))}
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             aria-label="Tipo de sessão"
           >
             {tiposSessao.map((tipo) => <option key={tipo}>{tipo}</option>)}
-          </select>
-          <select
+          </select></FormField>
+          <FormField id="secretaria-sessao-grau" label="Grau" required><select id="secretaria-sessao-grau"
             value={novaSessao.grau}
             onChange={(evento) => setNovaSessao((atual) => ({ ...atual, grau: evento.target.value }))}
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             aria-label="Grau da sessão"
           >
             {grausSessao.map((grau) => <option key={grau}>{grau}</option>)}
-          </select>
-          <input
+          </select></FormField>
+          <FormField id="secretaria-sessao-titulo" label="Título" optional><input id="secretaria-sessao-titulo"
             value={novaSessao.titulo ?? ""}
             onChange={(evento) => setNovaSessao((atual) => ({ ...atual, titulo: evento.target.value }))}
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             placeholder="Título (opcional)"
-          />
+          /></FormField>
           <button type="submit" className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300">
             Criar sessão integrada
           </button>

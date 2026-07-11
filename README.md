@@ -1,4 +1,4 @@
-# SIGMA LUMP
+# SIGMA 2.0
 
 Sistema integrado de gestão maçônica para Secretaria, Chancelaria, Tesouraria e cadastro de obreiros.
 

@@ -5,6 +5,7 @@ import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
+import { FormField } from "@/components/ui/FormField";
 import { carregarTesouraria, excluirCustoFinanceiro, excluirLancamentoFinanceiro, excluirRecebimentosDaCompetencia, excluirRegraFinanceira, listarGestoes, listarObreiros, listarSessoes, salvarCustoFinanceiro, salvarLancamentoFinanceiro, salvarRecebimentosFinanceiros, salvarRegrasFinanceiras } from "@/lib/supabase/operacional";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
@@ -737,7 +738,7 @@ export function TesourariaClient() {
           { href: "#visao-financeira", titulo: "Visão financeira", descricao: "Saldo e alertas do período.", destaque: "amber" },
           { href: "#mensalidades", titulo: "Mensalidades", descricao: "Cobrança e recebimentos.", destaque: "emerald" },
           { href: "#custos", titulo: "Custos da Loja", descricao: "Obrigações e parcelas.", destaque: "sky" },
-          { href: "#caixa", titulo: "Caixa e Tronco", descricao: "Receitas, despesas e Tronco.", destaque: "amber" },
+          { href: "/tesouraria/configuracoes", titulo: "Configuração", descricao: "Contas, categorias e centros de custo.", destaque: "amber" },
         ]}
       />
 
@@ -800,16 +801,16 @@ export function TesourariaClient() {
         </p>
 
         <form onSubmit={cadastrarRegra} className="mt-6 grid gap-3 md:grid-cols-4">
-          <input
+          <FormField id="vigencia-inicio" label="Início da vigência" required><input id="vigencia-inicio"
             type="date"
             value={novaRegra.dataInicio}
             onChange={(evento) =>
               setNovaRegra((atual) => ({ ...atual, dataInicio: evento.target.value }))
             }
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-          />
+          /></FormField>
 
-          <input
+          <FormField id="vigencia-valor" label="Valor mensal" required><input id="vigencia-valor"
             type="number"
             min="0"
             value={novaRegra.valor}
@@ -817,17 +818,17 @@ export function TesourariaClient() {
               setNovaRegra((atual) => ({ ...atual, valor: Number(evento.target.value) }))
             }
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            placeholder="Valor"
-          />
+            placeholder="Ex.: 150,00"
+          /></FormField>
 
-          <input
+          <FormField id="vigencia-descricao" label="Descrição" required><input id="vigencia-descricao"
             value={novaRegra.descricao}
             onChange={(evento) =>
               setNovaRegra((atual) => ({ ...atual, descricao: evento.target.value }))
             }
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            placeholder="Descrição"
-          />
+            placeholder="Ex.: Mensalidade vigente em 2026"
+          /></FormField>
 
           <button
             type="submit"

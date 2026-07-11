@@ -1,7 +1,10 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { ativarGestaoBanco, excluirGestaoBanco, listarGestoes, salvarGestaoBanco, type GestaoOperacional } from "@/lib/supabase/operacional";
+import { FormField } from "@/components/ui/FormField";
+import { Feedback } from "@/components/ui/Feedback";
+import { ativarGestaoBanco, excluirGestaoBanco, listarGestoes, listarObreiros, salvarGestaoBanco, type GestaoOperacional } from "@/lib/supabase/operacional";
+import type { Obreiro } from "@/types";
 
 type CargosGestao = {
   veneravelMestre: string;
@@ -36,9 +39,21 @@ const gestaoVazia: GestaoLoja = {
   anoTrabalho: new Date().getFullYear(),
   financeiroPositivoRecebido: 0,
   financeiroNegativoRecebido: 0,
+  caixaFisicoRecebido: 0,
+  contaBancariaRecebida: 0,
+  creditosReceber: 0,
+  status: "Rascunho",
   observacaoRepasse: "",
   cargos: cargosVazios,
+  diretoria: {},
 };
+
+const camposDiretoria: Array<[keyof CargosGestao, string, boolean]> = [
+  ["veneravelMestre", "Venerável Mestre", true], ["primeiroVigilante", "1º Vigilante", false],
+  ["segundoVigilante", "2º Vigilante", false], ["orador", "Orador", false],
+  ["secretario", "Secretário", true], ["tesoureiro", "Tesoureiro", true],
+  ["chanceler", "Chanceler", true], ["mestreCerimonias", "Mestre de Cerimônias", false],
+];
 
 function formatarMoeda(valor: number) {
   return valor.toLocaleString("pt-BR", {
@@ -61,17 +76,21 @@ function saldoLiquido(gestao: GestaoLoja) {
 
 export function ConfiguracoesGestaoClient() {
   const [gestoes, setGestoes] = useState<GestaoLoja[]>([]);
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [gestaoAtualId, setGestaoAtualId] = useState("");
   const [formulario, setFormulario] = useState<GestaoLoja>(gestaoVazia);
   const [carregado, setCarregado] = useState(false);
   const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
+  const [gestaoParaRemover, setGestaoParaRemover] = useState<GestaoLoja | null>(null);
 
   useEffect(() => {
-    listarGestoes()
-      .then((itens) => {
+    Promise.all([listarGestoes(), listarObreiros()])
+      .then(([itens, listaObreiros]) => {
         const normalizadas = itens.map((item) => ({ ...item, cargos: { ...cargosVazios, ...item.cargos } })) as GestaoLoja[];
         setGestoes(normalizadas);
         setGestaoAtualId(normalizadas.find((item) => item.ativa)?.id ?? "");
+        setObreiros([...listaObreiros].sort((a,b)=>a.nome.localeCompare(b.nome,"pt-BR")));
       })
       .catch((falha: unknown) => setErro(falha instanceof Error ? falha.message : "Não foi possível carregar as gestões."))
       .finally(() => setCarregado(true));
@@ -109,6 +128,11 @@ export function ConfiguracoesGestaoClient() {
       alert("Informe a data de início da gestão.");
       return;
     }
+    if (!formulario.dataFimGestao) { setErro("Informe a data de fim da gestão."); return; }
+    if (formulario.dataFimGestao < formulario.dataInicioGestao) { setErro("A data final não pode ser anterior à data inicial."); return; }
+    if ([formulario.financeiroPositivoRecebido, formulario.financeiroNegativoRecebido, formulario.caixaFisicoRecebido, formulario.contaBancariaRecebida, formulario.creditosReceber].some((valor)=>valor<0)) { setErro("Os valores recebidos não podem ser negativos."); return; }
+    if (formulario.status === "Atual" && ["veneravelMestre","secretario","tesoureiro","chanceler"].some((cargo)=>!formulario.diretoria[cargo])) { setErro("Para tornar a gestão Atual, defina Venerável Mestre, Secretário, Tesoureiro e Chanceler."); return; }
+    if (formulario.id && gestoes.find((item)=>item.id===formulario.id)?.status === "Encerrada") { setErro("Gestões encerradas são protegidas para preservar a lisura da prestação de contas e do repasse administrativo."); return; }
 
     if (!formulario.anoTrabalho || formulario.anoTrabalho < 2000) {
       alert("Informe um ano de trabalho válido.");
@@ -128,7 +152,7 @@ export function ConfiguracoesGestaoClient() {
 
     let salva: GestaoLoja;
     try {
-      salva = await salvarGestaoBanco({ ...gestaoParaSalvar, ativa: true }) as GestaoLoja;
+      salva = await salvarGestaoBanco({ ...gestaoParaSalvar, ativa: gestaoParaSalvar.status === "Atual" }) as GestaoLoja;
     } catch (falha) {
       setErro(falha instanceof Error ? falha.message : "Não foi possível salvar a gestão.");
       return;
@@ -149,7 +173,7 @@ export function ConfiguracoesGestaoClient() {
     setGestaoAtualId(salva.id);
     setFormulario(gestaoVazia);
 
-    alert("Gestão salva e definida como gestão atual.");
+    setSucesso("Gestão salva e definida como gestão atual.");
   }
 
   function editarGestao(gestao: GestaoLoja) {
@@ -165,9 +189,6 @@ export function ConfiguracoesGestaoClient() {
   }
 
   async function removerGestao(id: string) {
-    const confirmar = confirm("Deseja remover esta gestão?");
-    if (!confirmar) return;
-
     try {
       await excluirGestaoBanco(id);
       setGestoes((atuais) => atuais.filter((gestao) => gestao.id !== id));
@@ -181,13 +202,12 @@ export function ConfiguracoesGestaoClient() {
     }
   }
 
-  function atualizarCargo(cargo: keyof CargosGestao, valor: string) {
+  function atualizarDiretoria(cargo: keyof CargosGestao, obreiroId: string) {
+    const nome = obreiros.find((item)=>item.id===obreiroId)?.nome ?? "";
     setFormulario((atual) => ({
       ...atual,
-      cargos: {
-        ...atual.cargos,
-        [cargo]: valor,
-      },
+      cargos: { ...atual.cargos, [cargo]: nome },
+      diretoria: { ...atual.diretoria, [cargo]: obreiroId },
     }));
   }
 
@@ -202,6 +222,7 @@ export function ConfiguracoesGestaoClient() {
   return (
     <div className="mt-8 space-y-6">
       {erro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{erro}</div>}
+      {sucesso && <Feedback tone="success">{sucesso}</Feedback>}
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Cadastro de Gestão</h3>
         <p className="mt-2 text-sm text-zinc-400">
@@ -210,16 +231,16 @@ export function ConfiguracoesGestaoClient() {
 
         <form onSubmit={salvarGestao} className="mt-6 space-y-5">
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <input
+            <FormField id="gestao-nome" label="Nome da gestão" required><input id="gestao-nome"
               value={formulario.nomeGestao}
               onChange={(evento) =>
                 setFormulario((atual) => ({ ...atual, nomeGestao: evento.target.value }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Nome da gestão atual"
-            />
+              placeholder="Ex.: Gestão União e Trabalho"
+            /></FormField>
 
-            <input
+            <FormField id="gestao-anterior" label="Gestão responsável pelo repasse" required><input id="gestao-anterior"
               value={formulario.gestaoAnteriorRepasse}
               onChange={(evento) =>
                 setFormulario((atual) => ({
@@ -228,10 +249,10 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Gestão anterior que fez o repasse"
-            />
+              placeholder="Nome da gestão anterior"
+            /></FormField>
 
-            <input
+            <FormField id="gestao-inicio" label="Início do mandato" required><input id="gestao-inicio"
               type="date"
               value={formulario.dataInicioGestao}
               onChange={(evento) =>
@@ -241,9 +262,9 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            />
+            /></FormField>
 
-            <input
+            <FormField id="gestao-fim" label="Fim do mandato" optional><input id="gestao-fim"
               type="date"
               value={formulario.dataFimGestao}
               onChange={(evento) =>
@@ -253,11 +274,11 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            />
+            /></FormField>
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <input
+            <FormField id="gestao-ano" label="Ano de trabalho" required><input id="gestao-ano"
               type="number"
               value={formulario.anoTrabalho}
               onChange={(evento) =>
@@ -267,10 +288,10 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Ano de trabalho"
-            />
+              placeholder="Ex.: 2026"
+            /></FormField>
 
-            <input
+            <FormField id="gestao-credito" label="Saldo positivo recebido" description="Informe somente quando houver valor real no repasse."><input id="gestao-credito"
               type="number"
               value={formulario.financeiroPositivoRecebido}
               onChange={(evento) =>
@@ -280,10 +301,10 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Financeiro positivo recebido"
-            />
+              placeholder="R$ 0,00"
+            /></FormField>
 
-            <input
+            <FormField id="gestao-divida" label="Dívidas recebidas" description="Obrigações herdadas da gestão anterior."><input id="gestao-divida"
               type="number"
               value={formulario.financeiroNegativoRecebido}
               onChange={(evento) =>
@@ -293,8 +314,8 @@ export function ConfiguracoesGestaoClient() {
                 }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-              placeholder="Financeiro negativo / dívidas"
-            />
+              placeholder="R$ 0,00"
+            /></FormField>
 
             <div
               className={`rounded-2xl border p-4 ${
@@ -314,69 +335,22 @@ export function ConfiguracoesGestaoClient() {
             </div>
           </div>
 
+          <FormField id="gestao-status" label="Situação administrativa" required><select id="gestao-status" value={formulario.status} onChange={(e)=>setFormulario((atual)=>({...atual,status:e.target.value as GestaoLoja["status"]}))} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3"><option>Rascunho</option><option>Atual</option><option>Encerrada</option></select></FormField>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <FormField id="caixa-fisico" label="Caixa físico recebido"><input id="caixa-fisico" type="number" min="0" step="0.01" value={formulario.caixaFisicoRecebido} onChange={(e)=>setFormulario(a=>({...a,caixaFisicoRecebido:Number(e.target.value)}))} className="rounded-xl border border-white/10 bg-black/30 px-4 py-3"/></FormField>
+            <FormField id="conta-bancaria" label="Conta bancária recebida"><input id="conta-bancaria" type="number" min="0" step="0.01" value={formulario.contaBancariaRecebida} onChange={(e)=>setFormulario(a=>({...a,contaBancariaRecebida:Number(e.target.value)}))} className="rounded-xl border border-white/10 bg-black/30 px-4 py-3"/></FormField>
+            <FormField id="creditos-receber" label="Créditos a receber"><input id="creditos-receber" type="number" min="0" step="0.01" value={formulario.creditosReceber} onChange={(e)=>setFormulario(a=>({...a,creditosReceber:Number(e.target.value)}))} className="rounded-xl border border-white/10 bg-black/30 px-4 py-3"/></FormField>
+          </div>
+
           <div className="rounded-2xl border border-white/10 bg-black/20 p-5">
             <h4 className="text-lg font-bold text-white">Cargos da Gestão</h4>
 
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <input
-                value={formulario.cargos.veneravelMestre}
-                onChange={(evento) => atualizarCargo("veneravelMestre", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Venerável Mestre"
-              />
-
-              <input
-                value={formulario.cargos.primeiroVigilante}
-                onChange={(evento) => atualizarCargo("primeiroVigilante", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="1º Vigilante"
-              />
-
-              <input
-                value={formulario.cargos.segundoVigilante}
-                onChange={(evento) => atualizarCargo("segundoVigilante", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="2º Vigilante"
-              />
-
-              <input
-                value={formulario.cargos.orador}
-                onChange={(evento) => atualizarCargo("orador", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Orador"
-              />
-
-              <input
-                value={formulario.cargos.secretario}
-                onChange={(evento) => atualizarCargo("secretario", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Secretário"
-              />
-
-              <input
-                value={formulario.cargos.tesoureiro}
-                onChange={(evento) => atualizarCargo("tesoureiro", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Tesoureiro"
-              />
-
-              <input
-                value={formulario.cargos.chanceler}
-                onChange={(evento) => atualizarCargo("chanceler", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Chanceler"
-              />
-
-              <input
-                value={formulario.cargos.mestreCerimonias}
-                onChange={(evento) => atualizarCargo("mestreCerimonias", evento.target.value)}
-                className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-                placeholder="Mestre de Cerimônias"
-              />
-            </div>
+            {!obreiros.length && <Feedback tone="warning">Cadastre obreiros antes de definir a diretoria da gestão.</Feedback>}
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">{camposDiretoria.map(([cargo,label,obrigatorio])=><FormField key={cargo} id={`cargo-${cargo}`} label={label} required={obrigatorio}><select id={`cargo-${cargo}`} value={formulario.diretoria[cargo]??""} onChange={(e)=>atualizarDiretoria(cargo,e.target.value)} className="w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3"><option value="">Selecione</option>{obreiros.filter((item)=>item.situacao==="Ativo" || item.id===formulario.diretoria[cargo]).map((item)=><option key={item.id} value={item.id}>{item.nome}{item.situacao!=="Ativo"?" (Inativo)":""}</option>)}</select></FormField>)}</div>
           </div>
 
-          <textarea
+          <FormField id="gestao-observacoes" label="Observações do repasse" optional><textarea id="gestao-observacoes"
             value={formulario.observacaoRepasse}
             onChange={(evento) =>
               setFormulario((atual) => ({
@@ -386,7 +360,7 @@ export function ConfiguracoesGestaoClient() {
             }
             className="min-h-24 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             placeholder="Observação sobre o repasse financeiro, dívidas herdadas ou situação inicial da gestão"
-          />
+          /></FormField>
 
           <button
             type="submit"
@@ -494,7 +468,7 @@ export function ConfiguracoesGestaoClient() {
 
                   <button
                     type="button"
-                    onClick={() => removerGestao(gestao.id)}
+                    onClick={() => setGestaoParaRemover(gestao)}
                     className="rounded-full border border-red-400/30 px-4 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
                   >
                     Remover
@@ -564,6 +538,7 @@ export function ConfiguracoesGestaoClient() {
           )}
         </div>
       </section>
+      {gestaoParaRemover && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm" onMouseDown={(evento) => { if (evento.target === evento.currentTarget) setGestaoParaRemover(null); }}><section role="alertdialog" aria-modal="true" aria-labelledby="remover-gestao-titulo" className="w-full max-w-md rounded-3xl border border-red-400/25 bg-[#111312] p-6 shadow-2xl"><span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-red-400/10 text-2xl font-bold text-red-300" aria-hidden="true">!</span><h2 id="remover-gestao-titulo" className="mt-4 text-2xl font-bold">Remover gestão?</h2><p className="mt-2 text-sm leading-6 text-zinc-400">Você está prestes a remover <strong className="text-white">{gestaoParaRemover.nomeGestao}</strong>. Registros vinculados podem impedir a exclusão. Esta ação não pode ser desfeita.</p><div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end"><button type="button" onClick={() => setGestaoParaRemover(null)} className="rounded-xl border border-white/10 px-5 py-3 font-semibold hover:bg-white/[.05]">Cancelar</button><button type="button" onClick={() => { const id = gestaoParaRemover.id; setGestaoParaRemover(null); void removerGestao(id); }} className="rounded-xl bg-red-500 px-5 py-3 font-bold text-white hover:bg-red-400">Remover gestão</button></div></section></div>}
     </div>
   );
 }

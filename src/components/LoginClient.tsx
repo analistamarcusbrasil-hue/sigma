@@ -43,7 +43,7 @@ export function LoginClient({ erroInicial = "" }: { erroInicial?: string }) {
       <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center">
         <div className="grid w-full gap-8 xl:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[2rem] border border-amber-400/20 bg-gradient-to-br from-amber-400/15 to-white/[0.03] p-8">
-            <p className="text-sm uppercase tracking-[0.3em] text-amber-300">SIGMA LUMP</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-amber-300">SIGMA 2.0</p>
             <h1 className="mt-5 text-4xl font-black leading-tight md:text-5xl">Sistema Integrado de Gestão Maçônica</h1>
             <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300">Acesso seguro para gestão da Loja, com dados administrativos e operacionais organizados em um só sistema.</p>
           </section>

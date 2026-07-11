@@ -22,12 +22,12 @@ export type PerfilSigma = {
 };
 
 export const permissoesPorPerfil: Record<PerfilUsuario, string[]> = {
-  Administrador: ["/dashboard", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/configuracoes", "/backup", "/usuarios"],
-  "Venerável Mestre": ["/dashboard", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas"],
-  Secretário: ["/dashboard", "/obreiros", "/chancelaria", "/secretaria", "/prestacao-contas"],
+  Administrador: ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/configuracoes", "/auditoria", "/backup", "/usuarios"],
+  "Venerável Mestre": ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/auditoria"],
+  Secretário: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/secretaria", "/prestacao-contas"],
   Tesoureiro: ["/dashboard", "/obreiros", "/tesouraria", "/prestacao-contas"],
-  Chanceler: ["/dashboard", "/obreiros", "/chancelaria"],
-  Obreiro: ["/dashboard"],
+  Chanceler: ["/dashboard", "/agenda", "/obreiros", "/chancelaria"],
+  Obreiro: ["/dashboard", "/agenda"],
 };
 
 export function permissoesPadrao(perfil: PerfilUsuario) {
