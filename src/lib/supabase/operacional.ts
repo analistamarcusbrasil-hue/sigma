@@ -154,11 +154,9 @@ export async function salvarGestaoBanco(gestao: GestaoOperacional): Promise<Gest
 }
 
 export async function ativarGestaoBanco(id: string) {
-  const loja = await obterLojaAtual();
-  const supabase = createClient();
-  const { error: limparError } = await supabase.from("administracoes").update({ ativa: false }).eq("loja_id", loja.id).eq("ativa", true);
-  if (limparError) throw new Error(limparError.message);
-  const { error } = await supabase.from("administracoes").update({ ativa: true }).eq("id", id).eq("loja_id", loja.id);
+  const { error } = await createClient().rpc("ativar_administracao", {
+    alvo_administracao: id,
+  });
   if (error) throw new Error(error.message);
 }
 
@@ -199,6 +197,7 @@ async function reconciliarTabela(tabela: string, lojaId: string, itens: Array<Re
   }
 }
 
+/** @deprecated Use as mutações pontuais abaixo. Mantido temporariamente para compatibilidade. */
 export async function sincronizarTesouraria(estado: TesourariaBanco) {
   const loja = await obterLojaAtual();
   await Promise.all([
@@ -207,6 +206,58 @@ export async function sincronizarTesouraria(estado: TesourariaBanco) {
     reconciliarTabela("lancamentos_financeiros", loja.id, estado.lancamentos.map((i) => ({ id: i.id, loja_id: loja.id, sessao_id: i.sessaoId || null, data: i.data, tipo: i.tipo, descricao: i.descricao, valor: i.valor }))),
     reconciliarTabela("custos_loja", loja.id, estado.custos.map((i) => ({ id: i.id, loja_id: loja.id, fornecedor_nome: i.fornecedorNome, cnpj: i.cnpj || null, tipo_divida: i.tipoDivida, descricao: i.descricao || null, valor_total: i.valorTotal, parcelas_qtd: i.parcelasQtd, data_inicio: i.dataInicio, data_fim: i.dataFim || null, parcelas: i.parcelas }))),
   ]);
+}
+
+export async function salvarRegrasFinanceiras(itens: RegraFinanceira[]) {
+  if (!itens.length) return;
+  const loja = await obterLojaAtual();
+  const payload = itens.map((i) => ({ id: i.id, loja_id: loja.id, data_inicio: i.dataInicio, valor: i.valor, descricao: i.descricao || null }));
+  const { error } = await createClient().from("regras_mensalidade").upsert(payload);
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirRegraFinanceira(id: string) {
+  await excluirRegistroDaLoja("regras_mensalidade", id);
+}
+
+export async function salvarRecebimentosFinanceiros(itens: RecebimentoFinanceiro[]) {
+  if (!itens.length) return;
+  const loja = await obterLojaAtual();
+  const payload = itens.map((i) => ({ id: i.id, loja_id: loja.id, obreiro_id: i.obreiroId, data: `${i.mesLancamento}-01`, valor: i.valor, descricao: "Mensalidade" }));
+  const { error } = await createClient().from("recebimentos").upsert(payload);
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirRecebimentosDaCompetencia(mes: string) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("recebimentos").delete().eq("loja_id", loja.id).eq("data", `${mes}-01`);
+  if (error) throw new Error(error.message);
+}
+
+export async function salvarLancamentoFinanceiro(item: LancamentoFinanceiro) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("lancamentos_financeiros").upsert({ id: item.id, loja_id: loja.id, sessao_id: item.sessaoId || null, data: item.data, tipo: item.tipo, descricao: item.descricao, valor: item.valor });
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirLancamentoFinanceiro(id: string) {
+  await excluirRegistroDaLoja("lancamentos_financeiros", id);
+}
+
+export async function salvarCustoFinanceiro(item: CustoFinanceiro) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("custos_loja").upsert({ id: item.id, loja_id: loja.id, fornecedor_nome: item.fornecedorNome, cnpj: item.cnpj || null, tipo_divida: item.tipoDivida, descricao: item.descricao || null, valor_total: item.valorTotal, parcelas_qtd: item.parcelasQtd, data_inicio: item.dataInicio, data_fim: item.dataFim || null, parcelas: item.parcelas });
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirCustoFinanceiro(id: string) {
+  await excluirRegistroDaLoja("custos_loja", id);
+}
+
+async function excluirRegistroDaLoja(tabela: string, id: string) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from(tabela).delete().eq("id", id).eq("loja_id", loja.id);
+  if (error) throw new Error(error.message);
 }
 
 export async function carregarSecretaria(): Promise<SecretariaBanco> {
@@ -238,4 +289,47 @@ export async function sincronizarSecretaria(estado: SecretariaBanco) {
     reconciliarTabela("pecas_arquitetura", loja.id, estado.pecas.map((i) => ({ id:i.id, loja_id:loja.id, titulo:i.titulo, obreiro_id:i.obreiroId || null, grau:i.grau || null, data_prevista:i.dataPrevista || null, status:i.status, observacao:i.observacao || null }))),
     reconciliarTabela("decisoes_loja", loja.id, estado.decisoes.map((i) => ({ id:i.id, loja_id:loja.id, documento_id:i.documentoId || null, sessao_id:i.sessaoId || null, data:i.data, texto:i.texto, status:i.status, origem:i.origem || null }))),
   ]);
+}
+
+export async function salvarAcaoSecretaria(item: AcaoBanco) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("acoes_secretaria").upsert({ id: item.id, loja_id: loja.id, titulo: item.titulo, responsavel_id: item.responsavelId || null, prazo: item.prazo || null, status: item.status, observacao: item.observacao || null });
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirAcaoSecretaria(id: string) {
+  await excluirRegistroDaLoja("acoes_secretaria", id);
+}
+
+export async function salvarProcessoSecretaria(item: ProcessoBanco) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("processos_secretaria").upsert({ id: item.id, loja_id: loja.id, nome: item.nome, tipo: item.tipo, etapa: item.etapa || null, responsavel_id: item.responsavelId || null, data_prevista: item.dataPrevista || null, status: item.status, observacao: item.observacao || null });
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirProcessoSecretaria(id: string) {
+  await excluirRegistroDaLoja("processos_secretaria", id);
+}
+
+export async function salvarPecaArquitetura(item: PecaBanco) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("pecas_arquitetura").upsert({ id: item.id, loja_id: loja.id, titulo: item.titulo, obreiro_id: item.obreiroId || null, grau: item.grau || null, data_prevista: item.dataPrevista || null, status: item.status, observacao: item.observacao || null });
+  if (error) throw new Error(error.message);
+}
+
+export async function excluirPecaArquitetura(id: string) {
+  await excluirRegistroDaLoja("pecas_arquitetura", id);
+}
+
+export async function salvarDocumentoComDecisoes(documento: DocumentoBanco, decisoes: DecisaoBanco[]) {
+  const loja = await obterLojaAtual();
+  const p_documento = { id: documento.id, loja_id: loja.id, sessao_id: documento.sessaoId, numero: documento.numero, tipo: documento.tipo, data: documento.data, titulo: documento.titulo, grau: documento.grau, status: documento.status, ordem_do_dia: documento.ordemDoDia, resumo: documento.resumo, deliberacoes: documento.deliberacoes, tronco: documento.tronco, observacoes: documento.observacoes, relato_bruto: documento.relatoBruto, decisoes_loja: documento.decisoesLoja, texto_gerado: documento.textoGerado };
+  const p_decisoes = decisoes.map((item) => ({ id:item.id, sessao_id:item.sessaoId || null, data:item.data, texto:item.texto, status:item.status, origem:item.origem }));
+  const { error } = await createClient().rpc("salvar_documento_com_decisoes", { p_documento, p_decisoes });
+  if (error) throw new Error(error.message);
+}
+
+export async function removerDocumentoSecretaria(id: string) {
+  const { error } = await createClient().rpc("remover_documento_secretaria", { p_documento: id });
+  if (error) throw new Error(error.message);
 }

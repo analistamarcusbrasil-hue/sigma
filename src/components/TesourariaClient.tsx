@@ -5,7 +5,7 @@ import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
-import { carregarTesouraria, listarGestoes, listarObreiros, listarSessoes, sincronizarTesouraria } from "@/lib/supabase/operacional";
+import { carregarTesouraria, excluirCustoFinanceiro, excluirLancamentoFinanceiro, excluirRecebimentosDaCompetencia, excluirRegraFinanceira, listarGestoes, listarObreiros, listarSessoes, salvarCustoFinanceiro, salvarLancamentoFinanceiro, salvarRecebimentosFinanceiros, salvarRegrasFinanceiras } from "@/lib/supabase/operacional";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -188,7 +188,6 @@ export function TesourariaClient() {
   const [novoCusto, setNovoCusto] = useState(custoVazio);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [gestaoAtiva, setGestaoAtiva] = useState(() => obterGestaoAtualDoStorage());
-  const [carregado, setCarregado] = useState(false);
   const [erroBanco, setErroBanco] = useState("");
 
   const mesesCobraveis = useMemo(() => {
@@ -213,18 +212,8 @@ export function TesourariaClient() {
         }
         setMesSelecionado(mesAtualDoSistemaNoAno(ano));
       })
-      .catch((falha: unknown) => setErroBanco(falha instanceof Error ? falha.message : "Não foi possível carregar a Tesouraria."))
-      .finally(() => setCarregado(true));
+      .catch((falha: unknown) => setErroBanco(falha instanceof Error ? falha.message : "Não foi possível carregar a Tesouraria."));
   }, []);
-
-  useEffect(() => {
-    if (!carregado) return;
-    const timer = window.setTimeout(() => {
-      sincronizarTesouraria({ regras, recebimentos, lancamentos, custos: custosLoja })
-        .catch((falha: unknown) => setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar a Tesouraria."));
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [regras, recebimentos, lancamentos, custosLoja, carregado]);
 
   const regrasOrdenadas = useMemo(() => {
     return [...regras].sort(
@@ -429,7 +418,7 @@ export function TesourariaClient() {
     };
   }
 
-  function salvarPagamentoRapido(obreiroId: string) {
+  async function salvarPagamentoRapido(obreiroId: string) {
     const valorInformado = Number(pagamentosRapidos[obreiroId] ?? 0);
 
     if (!valorInformado || valorInformado <= 0) {
@@ -437,15 +426,10 @@ export function TesourariaClient() {
       return;
     }
 
-    setRecebimentos((atuais) => [
-      ...atuais,
-      {
-        id: gerarId(),
-        obreiroId,
-        mesLancamento: mesSelecionado,
-        valor: valorInformado,
-      },
-    ]);
+    const recebimento = { id: gerarId(), obreiroId, mesLancamento: mesSelecionado, valor: valorInformado };
+    try { await salvarRecebimentosFinanceiros([recebimento]); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível registrar o pagamento."); return; }
+    setRecebimentos((atuais) => [...atuais, recebimento]);
 
     setPagamentosRapidos((atuais) => ({
       ...atuais,
@@ -453,29 +437,31 @@ export function TesourariaClient() {
     }));
   }
 
-  function marcarTodosPagosMesAtual() {
+  async function marcarTodosPagosMesAtual() {
     const confirmar = confirm("Deseja marcar todos como pagos no mês selecionado?");
     if (!confirmar) return;
 
-    setRecebimentos((atuais) => [
-      ...atuais,
-      ...obreirosDaLoja.map((obreiro) => ({
+    const novos = obreirosDaLoja.map((obreiro) => ({
         id: gerarId(),
         obreiroId: obreiro.id,
         mesLancamento: mesSelecionado,
         valor: valorVigenteDoMes(mesSelecionado),
-      })),
-    ]);
+      }));
+    try { await salvarRecebimentosFinanceiros(novos); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível registrar os pagamentos."); return; }
+    setRecebimentos((atuais) => [...atuais, ...novos]);
   }
 
-  function limparMes() {
+  async function limparMes() {
     const confirmar = confirm("Deseja limpar os recebimentos do mês selecionado?");
     if (!confirmar) return;
 
+    try { await excluirRecebimentosDaCompetencia(mesSelecionado); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível limpar os recebimentos."); return; }
     setRecebimentos((atuais) => atuais.filter((item) => item.mesLancamento !== mesSelecionado));
   }
 
-  function cadastrarRegra(evento: FormEvent<HTMLFormElement>) {
+  async function cadastrarRegra(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novaRegra.dataInicio) {
@@ -488,22 +474,22 @@ export function TesourariaClient() {
       return;
     }
 
-    setRegras((atuais) => [
-      ...atuais,
-      {
+    const regra = {
         id: gerarId(),
         dataInicio: novaRegra.dataInicio,
         valor: Number(novaRegra.valor),
         descricao:
           novaRegra.descricao.trim() ||
           `Mensalidade vigente a partir de ${formatarDataBR(novaRegra.dataInicio)}`,
-      },
-    ]);
+      };
+    try { await salvarRegrasFinanceiras([regra]); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar a regra."); return; }
+    setRegras((atuais) => [...atuais, regra]);
 
     setNovaRegra(regraVazia);
   }
 
-  function removerRegra(id: string) {
+  async function removerRegra(id: string) {
     if (regras.length === 1) {
       alert("É necessário manter pelo menos uma regra.");
       return;
@@ -512,10 +498,12 @@ export function TesourariaClient() {
     const confirmar = confirm("Deseja remover esta regra?");
     if (!confirmar) return;
 
+    try { await excluirRegraFinanceira(id); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível remover a regra."); return; }
     setRegras((atuais) => atuais.filter((regra) => regra.id !== id));
   }
 
-  function cadastrarLancamento(evento: FormEvent<HTMLFormElement>) {
+  async function cadastrarLancamento(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novoLancamento.data) {
@@ -549,9 +537,7 @@ export function TesourariaClient() {
       return;
     }
 
-    setLancamentos((atuais) => [
-      ...atuais,
-      {
+    const lancamento: Lancamento = {
         id: gerarId(),
         data: novoLancamento.data,
         tipo: novoLancamento.tipo,
@@ -561,20 +547,24 @@ export function TesourariaClient() {
           novoLancamento.tipo === "Tronco de Solidariedade"
             ? novoLancamento.sessaoId
             : undefined,
-      },
-    ]);
+      };
+    try { await salvarLancamentoFinanceiro(lancamento); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar o lançamento."); return; }
+    setLancamentos((atuais) => [...atuais, lancamento]);
 
     setNovoLancamento(lancamentoVazio);
   }
 
-  function removerLancamento(id: string) {
+  async function removerLancamento(id: string) {
     const confirmar = confirm("Deseja remover este lançamento?");
     if (!confirmar) return;
 
+    try { await excluirLancamentoFinanceiro(id); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível remover o lançamento."); return; }
     setLancamentos((atuais) => atuais.filter((item) => item.id !== id));
   }
 
-  function cadastrarCusto(evento: FormEvent<HTMLFormElement>) {
+  async function cadastrarCusto(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novoCusto.fornecedorNome.trim()) {
@@ -603,8 +593,7 @@ export function TesourariaClient() {
       novoCusto.dataInicio
     );
 
-    setCustosLoja((atuais) => [
-      {
+    const custo: CustoLoja = {
         id: gerarId(),
         fornecedorNome: novoCusto.fornecedorNome.trim(),
         cnpj: novoCusto.cnpj.trim(),
@@ -615,21 +604,20 @@ export function TesourariaClient() {
         dataInicio: novoCusto.dataInicio,
         dataFim: parcelas.at(-1)?.vencimento ?? novoCusto.dataInicio,
         parcelas,
-      },
-      ...atuais,
-    ]);
+      };
+    try { await salvarCustoFinanceiro(custo); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar o custo."); return; }
+    setCustosLoja((atuais) => [custo, ...atuais]);
 
     setNovoCusto(custoVazio);
   }
 
-  function alternarPagamentoParcela(custoId: string, parcelaId: string) {
-    setCustosLoja((atuais) =>
-      atuais.map((custo) => {
-        if (custo.id !== custoId) return custo;
-
-        return {
-          ...custo,
-          parcelas: custo.parcelas.map((parcela) =>
+  async function alternarPagamentoParcela(custoId: string, parcelaId: string) {
+    const atual = custosLoja.find((custo) => custo.id === custoId);
+    if (!atual) return;
+    const atualizado = {
+          ...atual,
+          parcelas: atual.parcelas.map((parcela) =>
             parcela.id === parcelaId
               ? {
                   ...parcela,
@@ -639,14 +627,17 @@ export function TesourariaClient() {
               : parcela
           ),
         };
-      })
-    );
+    try { await salvarCustoFinanceiro(atualizado); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível atualizar a parcela."); return; }
+    setCustosLoja((atuais) => atuais.map((custo) => custo.id === custoId ? atualizado : custo));
   }
 
-  function removerCusto(id: string) {
+  async function removerCusto(id: string) {
     const confirmar = confirm("Deseja remover este custo da Loja?");
     if (!confirmar) return;
 
+    try { await excluirCustoFinanceiro(id); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível remover o custo."); return; }
     setCustosLoja((atuais) => atuais.filter((item) => item.id !== id));
   }
 

@@ -3,11 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros, listarPresencas, listarSessoes } from "@/lib/supabase/operacional";
-import { obreirosBase } from "@/lib/mock-data";
-import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import type { Obreiro } from "@/types";
-
-type TipoRelatorio = "Gestão";
 
 type CargosGestao = {
   veneravelMestre?: string;
@@ -147,21 +143,6 @@ type DecisaoLoja = {
   origem: string;
 };
 
-const nomesMeses = [
-  "Janeiro",
-  "Fevereiro",
-  "Março",
-  "Abril",
-  "Maio",
-  "Junho",
-  "Julho",
-  "Agosto",
-  "Setembro",
-  "Outubro",
-  "Novembro",
-  "Dezembro",
-];
-
 const regraInicial: RegraMensalidade = {
   id: "regra-inicial",
   dataInicio: "2025-01-01",
@@ -242,23 +223,8 @@ function dataDentroDaGestao(dataISO: string, gestao: GestaoLoja | null) {
   return true;
 }
 
-function lerLocalStorage<T>(chave: string, fallback: T): T {
-  if (typeof window === "undefined") return fallback;
-
-  try {
-    const valor = localStorage.getItem(chave);
-    if (!valor) return fallback;
-    return JSON.parse(valor) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function saldoInicialGestao(gestao: GestaoLoja | null) {
-  if (!gestao) {
-    if (typeof window === "undefined") return 0;
-    return Number(localStorage.getItem("sigma_saldo_anterior") ?? 0);
-  }
+  if (!gestao) return 0;
 
   return (
     Number(gestao.financeiroPositivoRecebido || 0) -
@@ -266,19 +232,9 @@ function saldoInicialGestao(gestao: GestaoLoja | null) {
   );
 }
 
-function obterGestaoAtual() {
-  if (typeof window === "undefined") return null;
-
-  const gestoes = lerLocalStorage<GestaoLoja[]>("sigma_gestoes", []);
-  const gestaoAtualId = localStorage.getItem("sigma_gestao_atual_id") ?? "";
-  const gestao = gestoes.find((item) => item.id === gestaoAtualId);
-
-  return gestao ?? null;
-}
-
 export function DashboardClient() {
   const [gestaoAtual, setGestaoAtual] = useState<GestaoLoja | null>(null);
-  const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [regras, setRegras] = useState<RegraMensalidade[]>([regraInicial]);
   const [recebimentos, setRecebimentos] = useState<Recebimento[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);

@@ -3,7 +3,7 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
-import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros, listarPresencas, listarSessoes, salvarSessao, sincronizarSecretaria } from "@/lib/supabase/operacional";
+import { carregarSecretaria, carregarTesouraria, excluirAcaoSecretaria, excluirPecaArquitetura, excluirProcessoSecretaria, listarGestoes, listarObreiros, listarPresencas, listarSessoes, removerDocumentoSecretaria, salvarAcaoSecretaria, salvarDocumentoComDecisoes, salvarPecaArquitetura, salvarProcessoSecretaria, salvarSessao } from "@/lib/supabase/operacional";
 import type { Obreiro, RegistroPresenca, Sessao } from "@/types";
 
 type Lancamento = {
@@ -272,15 +272,6 @@ export function SecretariaClient() {
       .catch((erro: unknown) => setErroOperacional(erro instanceof Error ? erro.message : "Não foi possível carregar o núcleo operacional."))
       .finally(() => setCarregado(true));
   }, []);
-
-  useEffect(() => {
-    if (!carregado) return;
-    const timer = window.setTimeout(() => {
-      sincronizarSecretaria({ documentos, acoes, processos, pecas, decisoes })
-        .catch((falha: unknown) => setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar a Secretaria."));
-    }, 500);
-    return () => window.clearTimeout(timer);
-  }, [documentos, acoes, processos, pecas, decisoes, carregado]);
 
   const obreirosDaLoja = useMemo(() => {
     return [...obreiros]
@@ -556,7 +547,7 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
     }));
   }
 
-  function salvarDocumento(evento: FormEvent<HTMLFormElement>) {
+  async function salvarDocumento(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novoDocumento.numero.trim()) {
@@ -611,6 +602,9 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
       origem: `${novoDocumento.tipo} nº ${novoDocumento.numero}`,
     }));
 
+    try { await salvarDocumentoComDecisoes(documentoSalvo, novasDecisoes); }
+    catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar o documento."); return; }
+
     setDecisoes((atuais) => [
       ...novasDecisoes,
       ...atuais.filter((decisao) => decisao.documentoId !== documentoId),
@@ -649,10 +643,15 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function aprovarDocumento(id: string) {
+  async function aprovarDocumento(id: string) {
     const confirmar = confirm("Deseja aprovar este documento?");
     if (!confirmar) return;
 
+    const atual = documentos.find((documento) => documento.id === id);
+    if (!atual) return;
+    const aprovado = { ...atual, status: "Aprovado" as const };
+    try { await salvarDocumentoComDecisoes(aprovado, decisoes.filter((item) => item.documentoId === id)); }
+    catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível aprovar o documento."); return; }
     setDocumentos((atuais) =>
       atuais.map((documento) =>
         documento.id === id ? { ...documento, status: "Aprovado" } : documento
@@ -660,10 +659,12 @@ Observação: as decisões acima ficam registradas para ciência dos Irmãos e p
     );
   }
 
-  function removerDocumento(id: string) {
+  async function removerDocumento(id: string) {
     const confirmar = confirm("Deseja remover este documento?");
     if (!confirmar) return;
+    try { await removerDocumentoSecretaria(id); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível remover o documento."); return; }
     setDocumentos((atuais) => atuais.filter((item) => item.id !== id));
+    setDecisoes((atuais) => atuais.filter((item) => item.documentoId !== id));
   }
 
   function textoDoDocumento(documento: DocumentoSecretaria) {
@@ -723,7 +724,7 @@ ${base}`;
     pdf.save(`${nomeArquivoDocumento(documento)}.pdf`);
   }
 
-  function salvarAcao(evento: FormEvent<HTMLFormElement>) {
+  async function salvarAcao(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novaAcao.titulo.trim()) {
@@ -731,31 +732,34 @@ ${base}`;
       return;
     }
 
-    setAcoes((atuais) => [
-      {
+    const acao: AcaoPendente = {
         id: gerarId(),
         ...novaAcao,
         titulo: novaAcao.titulo.trim(),
-      },
-      ...atuais,
-    ]);
+      };
+    try { await salvarAcaoSecretaria(acao); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar a ação."); return; }
+    setAcoes((atuais) => [acao, ...atuais]);
 
     setNovaAcao(acaoVazia);
   }
 
-  function atualizarStatusAcao(id: string, status: AcaoPendente["status"]) {
+  async function atualizarStatusAcao(id: string, status: AcaoPendente["status"]) {
+    const atual = acoes.find((item) => item.id === id); if (!atual) return;
+    const atualizado = { ...atual, status };
+    try { await salvarAcaoSecretaria(atualizado); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível atualizar a ação."); return; }
     setAcoes((atuais) =>
       atuais.map((item) => (item.id === id ? { ...item, status } : item))
     );
   }
 
-  function removerAcao(id: string) {
+  async function removerAcao(id: string) {
     const confirmar = confirm("Deseja remover esta ação?");
     if (!confirmar) return;
+    try { await excluirAcaoSecretaria(id); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível remover a ação."); return; }
     setAcoes((atuais) => atuais.filter((item) => item.id !== id));
   }
 
-  function salvarProcesso(evento: FormEvent<HTMLFormElement>) {
+  async function salvarProcesso(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novoProcesso.nome.trim()) {
@@ -763,31 +767,34 @@ ${base}`;
       return;
     }
 
-    setProcessos((atuais) => [
-      {
+    const processo: ProcessoSecretaria = {
         id: gerarId(),
         ...novoProcesso,
         nome: novoProcesso.nome.trim(),
-      },
-      ...atuais,
-    ]);
+      };
+    try { await salvarProcessoSecretaria(processo); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar o processo."); return; }
+    setProcessos((atuais) => [processo, ...atuais]);
 
     setNovoProcesso(processoVazio);
   }
 
-  function atualizarStatusProcesso(id: string, status: ProcessoSecretaria["status"]) {
+  async function atualizarStatusProcesso(id: string, status: ProcessoSecretaria["status"]) {
+    const atual = processos.find((item) => item.id === id); if (!atual) return;
+    const atualizado = { ...atual, status };
+    try { await salvarProcessoSecretaria(atualizado); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível atualizar o processo."); return; }
     setProcessos((atuais) =>
       atuais.map((item) => (item.id === id ? { ...item, status } : item))
     );
   }
 
-  function removerProcesso(id: string) {
+  async function removerProcesso(id: string) {
     const confirmar = confirm("Deseja remover este processo?");
     if (!confirmar) return;
+    try { await excluirProcessoSecretaria(id); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível remover o processo."); return; }
     setProcessos((atuais) => atuais.filter((item) => item.id !== id));
   }
 
-  function salvarPeca(evento: FormEvent<HTMLFormElement>) {
+  async function salvarPeca(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novaPeca.titulo.trim()) {
@@ -800,27 +807,30 @@ ${base}`;
       return;
     }
 
-    setPecas((atuais) => [
-      {
+    const peca: PecaArquitetura = {
         id: gerarId(),
         ...novaPeca,
         titulo: novaPeca.titulo.trim(),
-      },
-      ...atuais,
-    ]);
+      };
+    try { await salvarPecaArquitetura(peca); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar a peça."); return; }
+    setPecas((atuais) => [peca, ...atuais]);
 
     setNovaPeca(pecaVazia);
   }
 
-  function atualizarStatusPeca(id: string, status: PecaArquitetura["status"]) {
+  async function atualizarStatusPeca(id: string, status: PecaArquitetura["status"]) {
+    const atual = pecas.find((item) => item.id === id); if (!atual) return;
+    const atualizado = { ...atual, status };
+    try { await salvarPecaArquitetura(atualizado); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível atualizar a peça."); return; }
     setPecas((atuais) =>
       atuais.map((item) => (item.id === id ? { ...item, status } : item))
     );
   }
 
-  function removerPeca(id: string) {
+  async function removerPeca(id: string) {
     const confirmar = confirm("Deseja remover esta peça?");
     if (!confirmar) return;
+    try { await excluirPecaArquitetura(id); } catch (falha) { setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível remover a peça."); return; }
     setPecas((atuais) => atuais.filter((item) => item.id !== id));
   }
 
