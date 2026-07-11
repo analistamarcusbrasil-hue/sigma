@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
+import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros, listarPresencas, listarSessoes } from "@/lib/supabase/operacional";
 import { obreirosBase } from "@/lib/mock-data";
 import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import type { Obreiro } from "@/types";
@@ -292,27 +293,15 @@ export function DashboardClient() {
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
-    const gestao = obterGestaoAtual();
-
-    setGestaoAtual(gestao);
-    setObreiros(carregarObreiros());
-
-    const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
-      regraInicial,
-    ]);
-
-    setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
-    setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
-    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
-    setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
-    setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
-    setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
-    setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
-    setAcoes(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
-    setProcessos(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
-    setPecas(lerLocalStorage<PecaArquitetura[]>("sigma_pecas_secretaria", []));
-    setDecisoes(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
-    setCarregado(true);
+    Promise.all([listarGestoes(), listarObreiros(), listarSessoes(), listarPresencas(), carregarTesouraria(), carregarSecretaria()])
+      .then(([gestoes, obreirosBanco, sessoesBanco, presencasBanco, financeiro, secretaria]) => {
+        setGestaoAtual((gestoes.find((item) => item.ativa) ?? null) as GestaoLoja | null);
+        setObreiros(obreirosBanco); setSessoes(sessoesBanco as Sessao[]); setPresencas(presencasBanco);
+        setRegras(financeiro.regras as RegraMensalidade[]); setRecebimentos(financeiro.recebimentos as Recebimento[]);
+        setLancamentos(financeiro.lancamentos as Lancamento[]); setCustosLoja(financeiro.custos as CustoLoja[]);
+        setDocumentos(secretaria.documentos as DocumentoSecretaria[]); setAcoes(secretaria.acoes as AcaoPendente[]);
+        setProcessos(secretaria.processos as ProcessoSecretaria[]); setPecas(secretaria.pecas as PecaArquitetura[]); setDecisoes(secretaria.decisoes as DecisaoLoja[]);
+      }).finally(() => setCarregado(true));
   }, []);
 
   const obreirosDaLoja = useMemo(() => {

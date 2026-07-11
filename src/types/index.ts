@@ -25,3 +25,12 @@ export type RegistroPresenca = {
   observacao?: string;
   cargoSessao?: string;
 };
+
+export type Sessao = {
+  id: string;
+  data: string;
+  tipo: string;
+  grau: string;
+  titulo: string;
+  observacao?: string;
+};

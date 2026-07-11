@@ -1,12 +1,11 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { obreirosBase } from "@/lib/mock-data";
 import type { Obreiro } from "@/types";
 import { anoAtualSistema, gerarMesesDoAno, mesAtualDoSistemaNoAno } from "@/lib/periodos";
 import { mesCobravelNaGestao, obterGestaoAtualDoStorage } from "@/lib/gestao";
-import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
+import { carregarTesouraria, listarGestoes, listarObreiros, listarSessoes, sincronizarTesouraria } from "@/lib/supabase/operacional";
 
 type StatusMensalidade = "Pendente" | "Parcial" | "Pago" | "Isento";
 type TipoLancamento = "Tronco de Solidariedade" | "Receita Extra" | "Despesa";
@@ -73,7 +72,7 @@ type CustoLoja = {
 };
 
 const regraInicial: RegraMensalidade = {
-  id: "regra-inicial-2026",
+  id: "00000000-0000-4000-8000-000000000001",
   dataInicio: "2026-01-01",
   valor: 100,
   descricao: "Valor inicial da mensalidade",
@@ -140,16 +139,6 @@ function classeStatus(status: StatusMensalidade) {
   return "border-red-400/30 bg-red-400/10 text-red-300";
 }
 
-function lerLocalStorage<T>(chave: string, fallback: T): T {
-  try {
-    const valor = localStorage.getItem(chave);
-    if (!valor) return fallback;
-    return JSON.parse(valor) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function adicionarMeses(dataISO: string, meses: number) {
   const [ano, mes, dia] = dataISO.split("-").map(Number);
   const data = new Date(ano, mes - 1 + meses, dia, 12, 0, 0);
@@ -180,7 +169,7 @@ function gerarParcelasCusto(valorTotal: number, qtd: number, dataInicio: string)
 }
 
 export function TesourariaClient() {
-  const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [anoTrabalho, setAnoTrabalho] = useState(anoAtualSistema());
   const [mesSelecionado, setMesSelecionado] = useState(() =>
     mesAtualDoSistemaNoAno(anoAtualSistema())
@@ -200,6 +189,7 @@ export function TesourariaClient() {
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [gestaoAtiva, setGestaoAtiva] = useState(() => obterGestaoAtualDoStorage());
   const [carregado, setCarregado] = useState(false);
+  const [erroBanco, setErroBanco] = useState("");
 
   const mesesCobraveis = useMemo(() => {
     return mesesDoAno.filter((mes) => mesCobravelNaGestao(mes.id, gestaoAtiva));
@@ -208,54 +198,33 @@ export function TesourariaClient() {
   const mesesParaSelecionar = mesesCobraveis.length > 0 ? mesesCobraveis : mesesDoAno;
 
   useEffect(() => {
-    const gestaoSalva = obterGestaoAtualDoStorage();
-    const anoSalvo = gestaoSalva.anoTrabalho || Number(localStorage.getItem("sigma_ano_trabalho") ?? anoAtualSistema());
-    const mesesValidos = gerarMesesDoAno(anoSalvo).filter((mes) =>
-      mesCobravelNaGestao(mes.id, gestaoSalva)
-    );
-
-    setGestaoAtiva(gestaoSalva);
-    setAnoTrabalho(anoSalvo);
-    setMesSelecionado(mesesValidos[0]?.id ?? mesAtualDoSistemaNoAno(anoSalvo));
-
-    setObreiros(carregarObreiros());
-
-    const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
-      regraInicial,
-    ]);
-
-    setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
-    setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
-    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
-    setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
-    setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
-    setSaldoAnterior(gestaoSalva.saldoLiquidoInicial);
-    setCarregado(true);
+    Promise.all([carregarTesouraria(), listarObreiros(), listarSessoes(), listarGestoes()])
+      .then(([financeiro, obreirosBanco, sessoesBanco, gestoes]) => {
+        const gestao = gestoes.find((item) => item.ativa);
+        const ano = gestao?.anoTrabalho ?? anoAtualSistema();
+        setObreiros(obreirosBanco); setSessoes(sessoesBanco); setAnoTrabalho(ano);
+        setRegras(financeiro.regras.length ? financeiro.regras as RegraMensalidade[] : [regraInicial]);
+        setRecebimentos(financeiro.recebimentos as Recebimento[]);
+        setLancamentos(financeiro.lancamentos as Lancamento[]);
+        setCustosLoja(financeiro.custos as CustoLoja[]);
+        if (gestao) {
+          const ativa = { ...gestao, saldoLiquidoInicial: gestao.financeiroPositivoRecebido - gestao.financeiroNegativoRecebido };
+          setGestaoAtiva(ativa); setSaldoAnterior(ativa.saldoLiquidoInicial);
+        }
+        setMesSelecionado(mesAtualDoSistemaNoAno(ano));
+      })
+      .catch((falha: unknown) => setErroBanco(falha instanceof Error ? falha.message : "Não foi possível carregar a Tesouraria."))
+      .finally(() => setCarregado(true));
   }, []);
 
   useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_ano_trabalho", String(anoTrabalho));
-  }, [anoTrabalho, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_recebimentos_tesouraria", JSON.stringify(recebimentos));
-  }, [recebimentos, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_regras_mensalidade", JSON.stringify(regras));
-  }, [regras, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_lancamentos_financeiros", JSON.stringify(lancamentos));
-  }, [lancamentos, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_custos_loja", JSON.stringify(custosLoja));
-  }, [custosLoja, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_saldo_anterior", String(saldoAnterior));
-  }, [saldoAnterior, carregado]);
+    if (!carregado) return;
+    const timer = window.setTimeout(() => {
+      sincronizarTesouraria({ regras, recebimentos, lancamentos, custos: custosLoja })
+        .catch((falha: unknown) => setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar a Tesouraria."));
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [regras, recebimentos, lancamentos, custosLoja, carregado]);
 
   const regrasOrdenadas = useMemo(() => {
     return [...regras].sort(
@@ -769,6 +738,7 @@ export function TesourariaClient() {
 
   return (
     <div className="mt-8 space-y-6">
+      {erroBanco && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{erroBanco}</div>}
       <ModuleQuickNav
         titulo="Rotina financeira"
         descricao="Priorize o caixa atual e depois registre as movimentações."

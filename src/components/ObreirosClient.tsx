@@ -1,8 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
-import { buscarVinculosObreiro, carregarObreiros, salvarObreiros } from "@/lib/obreiros";
-import { obreirosBase } from "@/lib/mock-data";
+import { excluirObreiro, listarObreiros, salvarObreiro } from "@/lib/supabase/operacional";
 import type { Obreiro } from "@/types";
 
 const hojeISO = () => new Date().toISOString().slice(0, 10);
@@ -23,10 +22,6 @@ function formularioVazio(): Obreiro {
   };
 }
 
-function gerarId() {
-  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`;
-}
-
 function formatarData(data: string) {
   if (!data) return "Não informada";
   const [ano, mes, dia] = data.split("-");
@@ -37,22 +32,21 @@ const campo =
   "mt-2 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none transition placeholder:text-zinc-600 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/10";
 
 export function ObreirosClient() {
-  const [obreiros, setObreiros] = useState<Obreiro[]>(obreirosBase);
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [formulario, setFormulario] = useState<Obreiro>(formularioVazio);
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [erroNome, setErroNome] = useState("");
-  const [carregado, setCarregado] = useState(false);
+  const [carregando, setCarregando] = useState(true);
+  const [mensagemErro, setMensagemErro] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroSituacao, setFiltroSituacao] = useState<"Todos" | "Ativo" | "Inativo">("Todos");
 
   useEffect(() => {
-    setObreiros(carregarObreiros());
-    setCarregado(true);
+    listarObreiros()
+      .then(setObreiros)
+      .catch((erro: unknown) => setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível carregar os obreiros."))
+      .finally(() => setCarregando(false));
   }, []);
-
-  useEffect(() => {
-    if (carregado) salvarObreiros(obreiros);
-  }, [obreiros, carregado]);
 
   const obreirosOrdenados = useMemo(() => {
     const termo = busca.trim().toLocaleLowerCase("pt-BR");
@@ -82,7 +76,7 @@ export function ObreirosClient() {
     if (campoNome === "nome" && valor.trim()) setErroNome("");
   }
 
-  function salvar(evento: FormEvent<HTMLFormElement>) {
+  async function salvar(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
     const nome = formulario.nome.trim();
     if (!nome) {
@@ -90,16 +84,14 @@ export function ObreirosClient() {
       return;
     }
 
-    if (editandoId) {
-      setObreiros((atuais) =>
-        atuais.map((item) =>
-          item.id === editandoId ? { ...formulario, id: editandoId, nome } : item,
-        ),
-      );
-    } else {
-      setObreiros((atuais) => [...atuais, { ...formulario, id: gerarId(), nome }]);
+    setMensagemErro("");
+    try {
+      const salvo = await salvarObreiro({ ...formulario, id: editandoId ?? "", nome });
+      setObreiros((atuais) => editandoId ? atuais.map((item) => item.id === editandoId ? salvo : item) : [...atuais, salvo]);
+      cancelarEdicao();
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível salvar o obreiro.");
     }
-    cancelarEdicao();
   }
 
   function editar(obreiro: Obreiro) {
@@ -115,33 +107,32 @@ export function ObreirosClient() {
     setErroNome("");
   }
 
-  function alternarSituacao(id: string) {
-    setObreiros((atuais) =>
-      atuais.map((item) =>
-        item.id === id
-          ? { ...item, situacao: item.situacao === "Ativo" ? "Inativo" : "Ativo" }
-          : item,
-      ),
-    );
+  async function alternarSituacao(id: string) {
+    const atual = obreiros.find((item) => item.id === id);
+    if (!atual) return;
+    try {
+      const salvo = await salvarObreiro({ ...atual, situacao: atual.situacao === "Ativo" ? "Inativo" : "Ativo" });
+      setObreiros((itens) => itens.map((item) => item.id === id ? salvo : item));
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível alterar a situação.");
+    }
   }
 
-  function excluir(obreiro: Obreiro) {
-    const vinculos = buscarVinculosObreiro(obreiro.id);
-    if (vinculos.length > 0) {
-      const resumo = vinculos.map((item) => `${item.quantidade} ${item.tipo}`).join(", ");
-      alert(
-        `${obreiro.nome} não pode ser excluído porque possui histórico vinculado: ${resumo}. Inative o cadastro para preservar os registros.`,
-      );
-      return;
-    }
-
+  async function excluir(obreiro: Obreiro) {
     if (!confirm(`Excluir definitivamente o cadastro de ${obreiro.nome}?`)) return;
-    setObreiros((atuais) => atuais.filter((item) => item.id !== obreiro.id));
-    if (editandoId === obreiro.id) cancelarEdicao();
+    try {
+      await excluirObreiro(obreiro.id);
+      setObreiros((atuais) => atuais.filter((item) => item.id !== obreiro.id));
+      if (editandoId === obreiro.id) cancelarEdicao();
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? `${erro.message} Inative o cadastro se houver histórico vinculado.` : "Não foi possível excluir o obreiro.");
+    }
   }
 
   return (
     <div className="mt-8 space-y-6">
+      {mensagemErro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{mensagemErro}</div>}
+      {carregando && <div className="rounded-2xl border border-white/10 p-4 text-sm text-zinc-400">Carregando obreiros do Supabase...</div>}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
           ["Total cadastrado", obreiros.length, "text-white"],

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros } from "@/lib/supabase/operacional";
 import { jsPDF } from "jspdf";
 import { obreirosBase } from "@/lib/mock-data";
 import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
@@ -260,31 +261,15 @@ export function PrestacaoContasClient() {
   const [carregado, setCarregado] = useState(false);
 
   useEffect(() => {
-    const gestao = obterGestaoAtual();
-    const ano =
-      gestao?.anoTrabalho ||
-      Number(
-        typeof window !== "undefined"
-          ? localStorage.getItem("sigma_ano_trabalho") ?? new Date().getFullYear()
-          : new Date().getFullYear()
-      );
-    const mesesValidos = gerarMesesDoAno(ano).filter((mes) => mesCobravel(mes.id, gestao));
-
-    setGestaoAtual(gestao);
-    setAnoTrabalho(ano);
-    setMesSelecionado(mesesValidos[0]?.id ?? `${ano}-01`);
-
-    const regrasSalvas = lerLocalStorage<RegraMensalidade[]>("sigma_regras_mensalidade", [
-      regraInicial,
-    ]);
-
-    setObreiros(carregarObreiros());
-    setRegras(regrasSalvas.length > 0 ? regrasSalvas : [regraInicial]);
-    setRecebimentos(lerLocalStorage<Recebimento[]>("sigma_recebimentos_tesouraria", []));
-    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
-    setCustosLoja(lerLocalStorage<CustoLoja[]>("sigma_custos_loja", []));
-    setDecisoesLoja(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
-    setCarregado(true);
+    Promise.all([listarGestoes(), listarObreiros(), carregarTesouraria(), carregarSecretaria()])
+      .then(([gestoes, obreirosBanco, financeiro, secretaria]) => {
+        const gestao = (gestoes.find((item) => item.ativa) ?? null) as GestaoLoja | null;
+        const ano = gestao?.anoTrabalho ?? new Date().getFullYear();
+        setGestaoAtual(gestao); setAnoTrabalho(ano); setMesSelecionado(`${ano}-01`); setObreiros(obreirosBanco);
+        setRegras(financeiro.regras as RegraMensalidade[]); setRecebimentos(financeiro.recebimentos as Recebimento[]);
+        setLancamentos(financeiro.lancamentos as Lancamento[]); setCustosLoja(financeiro.custos as CustoLoja[]);
+        setDecisoesLoja(secretaria.decisoes as DecisaoLoja[]);
+      }).finally(() => setCarregado(true));
   }, []);
 
   const mesesDoAno = useMemo(() => gerarMesesDoAno(anoTrabalho), [anoTrabalho]);

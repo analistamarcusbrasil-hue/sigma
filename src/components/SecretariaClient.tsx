@@ -2,19 +2,9 @@
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { jsPDF } from "jspdf";
-import { obreirosBase } from "@/lib/mock-data";
-import { carregarObreiros, normalizarObreiros } from "@/lib/obreiros";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
-import type { Obreiro, RegistroPresenca } from "@/types";
-
-type Sessao = {
-  id: string;
-  data: string;
-  tipo?: string;
-  grau?: string;
-  titulo?: string;
-  observacao?: string;
-};
+import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros, listarPresencas, listarSessoes, salvarSessao, sincronizarSecretaria } from "@/lib/supabase/operacional";
+import type { Obreiro, RegistroPresenca, Sessao } from "@/types";
 
 type Lancamento = {
   id: string;
@@ -194,16 +184,6 @@ function formatarMoeda(valor: number) {
   return valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 }
 
-function lerLocalStorage<T>(chave: string, fallback: T): T {
-  try {
-    const valor = localStorage.getItem(chave);
-    if (!valor) return fallback;
-    return JSON.parse(valor) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function separarDecisoes(texto: string) {
   return texto
     .split("\n")
@@ -232,22 +212,6 @@ function classeStatus(status: string) {
   return "border-zinc-400/30 bg-white/[0.04] text-zinc-300";
 }
 
-function obterGestaoAtualDaLoja(): GestaoLoja | null {
-  if (typeof window === "undefined") return null;
-
-  try {
-    const gestoesRaw = localStorage.getItem("sigma_gestoes");
-    const gestaoAtualId = localStorage.getItem("sigma_gestao_atual_id") ?? "";
-
-    if (!gestoesRaw) return null;
-
-    const gestoes = JSON.parse(gestoesRaw) as GestaoLoja[];
-    return gestoes.find((gestao) => gestao.id === gestaoAtualId) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function formatarDataDocumento(dataISO: string) {
   if (!dataISO) return "Não informado";
 
@@ -269,7 +233,7 @@ function normalizarCargo(valor: string) {
 }
 
 export function SecretariaClient() {
-  const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [sessoes, setSessoes] = useState<Sessao[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
@@ -288,40 +252,35 @@ export function SecretariaClient() {
   const [novaPeca, setNovaPeca] = useState(pecaVazia);
   const [gestaoAtual, setGestaoAtual] = useState<GestaoLoja | null>(null);
   const [carregado, setCarregado] = useState(false);
+  const [erroOperacional, setErroOperacional] = useState("");
 
   useEffect(() => {
-    setGestaoAtual(obterGestaoAtualDaLoja());
-    setObreiros(carregarObreiros());
-    setSessoes(lerLocalStorage<Sessao[]>("sigma_sessoes", []));
-    setPresencas(lerLocalStorage<RegistroPresenca[]>("sigma_presencas", []));
-    setLancamentos(lerLocalStorage<Lancamento[]>("sigma_lancamentos_financeiros", []));
-    setDocumentos(lerLocalStorage<DocumentoSecretaria[]>("sigma_documentos_secretaria", []));
-    setAcoes(lerLocalStorage<AcaoPendente[]>("sigma_acoes_secretaria", []));
-    setProcessos(lerLocalStorage<ProcessoSecretaria[]>("sigma_processos_secretaria", []));
-    setPecas(lerLocalStorage<PecaArquitetura[]>("sigma_pecas_secretaria", []));
-    setDecisoes(lerLocalStorage<DecisaoLoja[]>("sigma_decisoes_loja", []));
-    setCarregado(true);
+    Promise.all([listarObreiros(), listarSessoes(), listarPresencas(), carregarSecretaria(), carregarTesouraria(), listarGestoes()])
+      .then(([obreirosCarregados, sessoesCarregadas, presencasCarregadas, secretaria, tesouraria, gestoes]) => {
+        setObreiros(obreirosCarregados);
+        setSessoes(sessoesCarregadas);
+        setPresencas(presencasCarregadas);
+        setDocumentos(secretaria.documentos as DocumentoSecretaria[]);
+        setAcoes(secretaria.acoes as AcaoPendente[]);
+        setProcessos(secretaria.processos as ProcessoSecretaria[]);
+        setPecas(secretaria.pecas as PecaArquitetura[]);
+        setDecisoes(secretaria.decisoes as DecisaoLoja[]);
+        setLancamentos(tesouraria.lancamentos as Lancamento[]);
+        const atual = gestoes.find((item) => item.ativa);
+        if (atual) setGestaoAtual(atual as GestaoLoja);
+      })
+      .catch((erro: unknown) => setErroOperacional(erro instanceof Error ? erro.message : "Não foi possível carregar o núcleo operacional."))
+      .finally(() => setCarregado(true));
   }, []);
 
   useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_sessoes", JSON.stringify(sessoes));
-  }, [sessoes, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_documentos_secretaria", JSON.stringify(documentos));
-  }, [documentos, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_acoes_secretaria", JSON.stringify(acoes));
-  }, [acoes, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_processos_secretaria", JSON.stringify(processos));
-  }, [processos, carregado]);
-
-  useEffect(() => {
-    if (carregado) localStorage.setItem("sigma_pecas_secretaria", JSON.stringify(pecas));
-  }, [pecas, carregado]);
+    if (!carregado) return;
+    const timer = window.setTimeout(() => {
+      sincronizarSecretaria({ documentos, acoes, processos, pecas, decisoes })
+        .catch((falha: unknown) => setErroOperacional(falha instanceof Error ? falha.message : "Não foi possível salvar a Secretaria."));
+    }, 500);
+    return () => window.clearTimeout(timer);
+  }, [documentos, acoes, processos, pecas, decisoes, carregado]);
 
   const obreirosDaLoja = useMemo(() => {
     return [...obreiros]
@@ -393,7 +352,7 @@ export function SecretariaClient() {
       .reduce((total, item) => total + item.valor, 0);
   }
 
-  function cadastrarSessaoPelaSecretaria(evento: FormEvent<HTMLFormElement>) {
+  async function cadastrarSessaoPelaSecretaria(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novaSessao.data) {
@@ -411,7 +370,7 @@ export function SecretariaClient() {
     }
 
     const nova: Sessao = {
-      id: gerarId(),
+      id: "",
       data: novaSessao.data,
       tipo: novaSessao.tipo,
       grau: novaSessao.grau,
@@ -419,8 +378,13 @@ export function SecretariaClient() {
       observacao: novaSessao.observacao?.trim() || "",
     };
 
-    setSessoes((atuais) => [...atuais, nova]);
-    setNovaSessao(sessaoVazia);
+    try {
+      const salva = await salvarSessao(nova);
+      setSessoes((atuais) => [...atuais, salva]);
+      setNovaSessao(sessaoVazia);
+    } catch (erro) {
+      setErroOperacional(erro instanceof Error ? erro.message : "Não foi possível salvar a sessão.");
+    }
   }
 
     function nomeCargoSessao(cargoBuscado: string, sessaoId: string) {
@@ -880,6 +844,7 @@ ${base}`;
 
   return (
     <div className="mt-8 space-y-6">
+      {erroOperacional && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{erroOperacional}</div>}
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <article className="rounded-3xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Documentos</p>
