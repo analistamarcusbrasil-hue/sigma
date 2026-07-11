@@ -7,6 +7,11 @@ export const modulos = [
     descricao: "Painel principal da gestão atual.",
   },
   {
+    nome: "Agenda",
+    href: "/agenda",
+    descricao: "Calendário, sessões, prazos e compromissos.",
+  },
+  {
     nome: "Obreiros",
     href: "/obreiros",
     descricao: "Cadastro único de obreiros da Loja e visitantes.",
@@ -35,6 +40,11 @@ export const modulos = [
     nome: "Configurações",
     href: "/configuracoes",
     descricao: "Cadastro da gestão, diretoria, saldo inicial e repasse anterior.",
+  },
+  {
+    nome: "Auditoria",
+    href: "/auditoria",
+    descricao: "Histórico seguro de alterações e responsáveis.",
   },
   {
     nome: "Backup",

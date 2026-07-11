@@ -1,68 +1,87 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #08111f;
+  --foreground: #f4f4f5;
+  --surface: rgba(15, 29, 49, 0.82);
+  --surface-strong: rgba(23, 42, 68, 0.92);
+  --border: rgba(148, 163, 184, 0.16);
+  --accent: #d9ad4a;
+  --accent-soft: rgba(251, 191, 36, 0.12);
+  --muted: #a1a1aa;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "Inter", "Segoe UI", Arial, sans-serif;
+  --font-mono: "Cascadia Code", Consolas, monospace;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+* { box-sizing: border-box; }
+html { color-scheme: dark; scroll-behavior: smooth; }
 body {
-  background: var(--background);
+  margin: 0;
+  background:
+    radial-gradient(circle at 78% -10%, rgba(37, 99, 235, 0.13), transparent 34rem),
+    radial-gradient(circle at 100% 25%, rgba(217, 173, 74, 0.06), transparent 26rem),
+    var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Inter", "Segoe UI", Arial, sans-serif;
+  text-rendering: optimizeLegibility;
 }
 
-/* SIGMA: CORREÇÃO DOS CARDS DA TESOURARIA */
+::selection { background: rgba(251, 191, 36, 0.3); color: white; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+
+button, input, select, textarea { font: inherit; }
+button, [role="button"], a { -webkit-tap-highlight-color: transparent; }
+button:not(:disabled), [role="button"]:not([aria-disabled="true"]) { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: 0.6; }
+
+input:not([type="checkbox"]):not([type="radio"]), select, textarea {
+  min-height: 2.75rem;
+  color: #fafafa;
+  border-color: var(--border);
+  transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+}
+input:not([type="checkbox"]):not([type="radio"]):hover, select:hover, textarea:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+input:not([type="checkbox"]):not([type="radio"]):focus, select:focus, textarea:focus {
+  border-color: rgba(251, 191, 36, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(251, 191, 36, 0.11);
+  outline: none;
+}
+input::placeholder, textarea::placeholder { color: #71717a; opacity: 1; }
+input:disabled, select:disabled, textarea:disabled { color: #71717a; background: rgba(255,255,255,.025); }
+select option { background: #18181b; color: #fafafa; }
+label { line-height: 1.4; }
+
+table { font-variant-numeric: tabular-nums; }
+thead th { color: #d4d4d8; font-weight: 650; }
+tbody tr { transition: background 140ms ease; }
+tbody tr:hover { background: rgba(255,255,255,.025); }
+
+.sigma-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(251,191,36,.35) transparent; }
+.sigma-surface { border: 1px solid var(--border); background: linear-gradient(145deg, rgba(18,35,58,.94), rgba(11,24,42,.9)); box-shadow: 0 18px 50px rgba(0,0,0,.2); }
+.sigma-app-grid { background-image: linear-gradient(rgba(148,163,184,.018) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.018) 1px, transparent 1px); background-size: 32px 32px; }
+
 .treasury-summary-grid {
   display: grid !important;
   grid-template-columns: repeat(1, minmax(0, 1fr)) !important;
   gap: 1rem !important;
 }
-
-.treasury-summary-grid > * {
-  min-width: 0 !important;
-  max-width: 100% !important;
-  overflow: hidden !important;
+.treasury-summary-grid > * { min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; }
+.treasury-summary-grid > * > p:nth-of-type(2), .treasury-summary-grid > * [class*="tabular-nums"] {
+  display: block !important; max-width: 100% !important;
+  font-size: clamp(1.2rem, 1.6vw, 1.75rem) !important; line-height: 1.1 !important;
+  letter-spacing: -.035em !important; white-space: nowrap !important;
+  overflow: hidden !important; text-overflow: ellipsis !important;
 }
+@media (min-width: 640px) { .treasury-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; } }
+@media (min-width: 1280px) { .treasury-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)) !important; } }
 
-.treasury-summary-grid > * > p {
-  max-width: 100% !important;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; }
 }
-
-.treasury-summary-grid > * > p:nth-of-type(2),
-.treasury-summary-grid > * [class*="tabular-nums"] {
-  display: block !important;
-  max-width: 100% !important;
-  font-size: clamp(1.2rem, 1.6vw, 1.75rem) !important;
-  line-height: 1.1 !important;
-  letter-spacing: -0.035em !important;
-  white-space: nowrap !important;
-  overflow: hidden !important;
-  text-overflow: ellipsis !important;
-}
-
-@media (min-width: 640px) {
-  .treasury-summary-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  }
-}
-
-@media (min-width: 1280px) {
-  .treasury-summary-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
-  }
-}
-/* FIM: CORREÇÃO DOS CARDS DA TESOURARIA */

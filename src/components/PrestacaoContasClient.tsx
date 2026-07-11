@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros } from "@/lib/supabase/operacional";
 import { jsPDF } from "jspdf";
 import type { Obreiro } from "@/types";
+import { FormField } from "@/components/ui/FormField";
 
 type TipoRelatorio = "Mensal" | "Anual";
 
@@ -28,6 +29,11 @@ type GestaoLoja = {
   anoTrabalho: number;
   financeiroPositivoRecebido: number;
   financeiroNegativoRecebido: number;
+  caixaFisicoRecebido: number;
+  contaBancariaRecebida: number;
+  creditosReceber: number;
+  status: "Rascunho" | "Atual" | "Encerrada";
+  observacaoRepasse?: string;
   cargos?: CargosGestao;
 };
 
@@ -611,7 +617,7 @@ ${pendentes || "Não há irmãos com pendência financeira vencida."}
 CUSTOS EM ABERTO
 ${custos || "Não há custos em aberto."}
 
-Documento gerado pelo SIGMA LUMP.`;
+Documento gerado pelo SIGMA 2.0.`;
   }
 
   function baixarPDF() {
@@ -656,7 +662,7 @@ Documento gerado pelo SIGMA LUMP.`;
           </div>
 
           <div className="flex flex-wrap gap-3">
-            <input
+            <FormField id="relatorio-ano" label="Ano"><input id="relatorio-ano"
               type="number"
               value={anoTrabalho}
               onChange={(evento) => {
@@ -669,18 +675,18 @@ Documento gerado pelo SIGMA LUMP.`;
                 setMesSelecionado(mesesValidos[0]?.id ?? `${novoAno}-01`);
               }}
               className="w-32 rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            />
+            /></FormField>
 
-            <select
+            <FormField id="relatorio-tipo" label="Período"><select id="relatorio-tipo"
               value={tipoRelatorio}
               onChange={(evento) => setTipoRelatorio(evento.target.value as TipoRelatorio)}
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             >
               <option>Mensal</option>
               <option>Anual</option>
-            </select>
+            </select></FormField>
 
-            <select
+            <FormField id="relatorio-mes" label="Mês"><select id="relatorio-mes"
               value={mesSelecionado}
               onChange={(evento) => setMesSelecionado(evento.target.value)}
               disabled={tipoRelatorio === "Anual"}
@@ -691,7 +697,7 @@ Documento gerado pelo SIGMA LUMP.`;
                   {mes.nome}
                 </option>
               ))}
-            </select>
+            </select></FormField>
 
             <button
               type="button"
@@ -715,6 +721,8 @@ Documento gerado pelo SIGMA LUMP.`;
         <p className="mt-1 text-sm text-zinc-400">
           Início operacional: {formatarDataBR(gestaoAtual?.dataInicioGestao || "")}
         </p>
+        {gestaoAtual && <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">{[["Status",gestaoAtual.status],["Saldo positivo",formatarMoeda(gestaoAtual.financeiroPositivoRecebido)],["Obrigações",formatarMoeda(gestaoAtual.financeiroNegativoRecebido)],["Caixa físico",formatarMoeda(gestaoAtual.caixaFisicoRecebido)],["Conta bancária",formatarMoeda(gestaoAtual.contaBancariaRecebida)]].map(([titulo,valor])=><div key={titulo} className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-xs text-zinc-500">{titulo}</p><p className="mt-1 font-semibold text-white">{valor}</p></div>)}</div>}
+        {gestaoAtual?.observacaoRepasse && <p className="mt-4 rounded-xl border border-white/10 bg-black/15 p-3 text-sm text-zinc-300">{gestaoAtual.observacaoRepasse}</p>}
       </section>
 
       {visaoRelatorio === "Sintética" && (

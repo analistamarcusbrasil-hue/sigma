@@ -12,8 +12,13 @@ export type GestaoOperacional = {
   anoTrabalho: number;
   financeiroPositivoRecebido: number;
   financeiroNegativoRecebido: number;
+  caixaFisicoRecebido: number;
+  contaBancariaRecebida: number;
+  creditosReceber: number;
+  status: "Rascunho" | "Atual" | "Encerrada";
   observacaoRepasse: string;
   cargos: Record<string, string>;
+  diretoria: Record<string, string>;
   ativa?: boolean;
 };
 
@@ -28,6 +33,22 @@ export type ProcessoBanco = { id: string; nome: string; tipo: string; etapa: str
 export type PecaBanco = { id: string; titulo: string; obreiroId: string; grau: string; dataPrevista: string; status: string; observacao: string };
 export type DecisaoBanco = { id: string; documentoId: string; sessaoId: string; data: string; texto: string; status: string; origem: string };
 export type SecretariaBanco = { documentos: DocumentoBanco[]; acoes: AcaoBanco[]; processos: ProcessoBanco[]; pecas: PecaBanco[]; decisoes: DecisaoBanco[] };
+export type EventoAuditoria = {
+  id: number;
+  usuarioId: string | null;
+  tabela: string;
+  operacao: "INSERT" | "UPDATE" | "DELETE";
+  registroId: string | null;
+  alteracoes: Record<string, { antes: unknown; depois: unknown }>;
+  ocorridoEm: string;
+};
+export type TipoEventoAgenda = "Sessão" | "Reunião" | "Cerimônia" | "Evento social" | "Prazo" | "Financeiro" | "Comissão" | "Outro";
+export type StatusEventoAgenda = "Planejado" | "Confirmado" | "Concluído" | "Cancelado";
+export type EventoAgenda = { id: string; sessaoId: string; titulo: string; tipo: TipoEventoAgenda; descricao: string; inicio: string; fim: string; diaInteiro: boolean; local: string; responsavelId: string; status: StatusEventoAgenda; recorrencia: "Nenhuma" | "Semanal" | "Mensal" | "Anual"; lembreteMinutos: number | null };
+export type ContaFinanceira = { id: string; nome: string; tipo: "Caixa" | "Conta corrente" | "Poupança" | "Investimento"; banco: string; agencia: string; numero: string; saldoInicial: number; ativa: boolean };
+export type CategoriaFinanceira = { id: string; nome: string; natureza: "Receita" | "Despesa"; cor: string; ativa: boolean };
+export type CentroCusto = { id: string; nome: string; descricao: string; ativo: boolean };
+export type CadastrosFinanceiros = { contas: ContaFinanceira[]; categorias: CategoriaFinanceira[]; centros: CentroCusto[] };
 
 function mensagem(error: { message: string } | null, fallback: string) {
   if (error) throw new Error(error.message);
@@ -46,6 +67,59 @@ export async function obterLojaAtual(): Promise<Loja> {
   if (!loja) throw new Error("Seu usuário ainda não está vinculado a uma Loja.");
   return loja;
 }
+
+export async function listarAuditoria(limite = 250): Promise<EventoAuditoria[]> {
+  const loja = await obterLojaAtual();
+  const { data, error } = await createClient()
+    .from("auditoria_eventos")
+    .select("id, usuario_id, tabela, operacao, registro_id, alteracoes, ocorrido_em")
+    .eq("loja_id", loja.id)
+    .order("ocorrido_em", { ascending: false })
+    .limit(Math.min(Math.max(limite, 1), 500));
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((item) => ({
+    id: Number(item.id), usuarioId: item.usuario_id, tabela: item.tabela,
+    operacao: item.operacao as EventoAuditoria["operacao"], registroId: item.registro_id,
+    alteracoes: (item.alteracoes ?? {}) as EventoAuditoria["alteracoes"], ocorridoEm: item.ocorrido_em,
+  }));
+}
+
+export async function listarAgenda(): Promise<EventoAgenda[]> {
+  const loja = await obterLojaAtual();
+  const { data, error } = await createClient().from("agenda_eventos").select("*").eq("loja_id", loja.id).order("inicio");
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((item) => ({ id: item.id, sessaoId: item.sessao_id ?? "", titulo: item.titulo, tipo: item.tipo as TipoEventoAgenda, descricao: item.descricao ?? "", inicio: item.inicio, fim: item.fim ?? "", diaInteiro: item.dia_inteiro, local: item.local ?? "", responsavelId: item.responsavel_id ?? "", status: item.status as StatusEventoAgenda, recorrencia: item.recorrencia as EventoAgenda["recorrencia"], lembreteMinutos: item.lembrete_minutos }));
+}
+
+export async function salvarEventoAgenda(evento: EventoAgenda): Promise<EventoAgenda> {
+  const loja = await obterLojaAtual();
+  const payload = { loja_id: loja.id, sessao_id: evento.sessaoId || null, titulo: evento.titulo.trim(), tipo: evento.tipo, descricao: evento.descricao.trim() || null, inicio: evento.inicio, fim: evento.fim || null, dia_inteiro: evento.diaInteiro, local: evento.local.trim() || null, responsavel_id: evento.responsavelId || null, status: evento.status, recorrencia: evento.recorrencia, lembrete_minutos: evento.lembreteMinutos };
+  const query = evento.id ? createClient().from("agenda_eventos").update(payload).eq("id", evento.id).eq("loja_id", loja.id) : createClient().from("agenda_eventos").insert(payload);
+  const { data, error } = await query.select("id").single();
+  if (error) throw new Error(error.message);
+  return { ...evento, id: data.id };
+}
+
+export async function excluirEventoAgenda(id: string) {
+  const loja = await obterLojaAtual();
+  const { error } = await createClient().from("agenda_eventos").delete().eq("id", id).eq("loja_id", loja.id);
+  if (error) throw new Error(error.message);
+}
+
+export async function carregarCadastrosFinanceiros(): Promise<CadastrosFinanceiros> {
+  const loja = await obterLojaAtual(); const supabase = createClient();
+  const [contas, categorias, centros] = await Promise.all([
+    supabase.from("contas_financeiras").select("*").eq("loja_id", loja.id).order("nome"),
+    supabase.from("categorias_financeiras").select("*").eq("loja_id", loja.id).order("natureza").order("nome"),
+    supabase.from("centros_custo").select("*").eq("loja_id", loja.id).order("nome"),
+  ]);
+  for (const resultado of [contas, categorias, centros]) if (resultado.error) throw new Error(resultado.error.message);
+  return { contas: (contas.data ?? []).map((i) => ({ id:i.id, nome:i.nome, tipo:i.tipo as ContaFinanceira["tipo"], banco:i.banco ?? "", agencia:i.agencia ?? "", numero:i.numero ?? "", saldoInicial:Number(i.saldo_inicial), ativa:i.ativa })), categorias: (categorias.data ?? []).map((i) => ({ id:i.id, nome:i.nome, natureza:i.natureza as CategoriaFinanceira["natureza"], cor:i.cor ?? "#fbbf24", ativa:i.ativa })), centros: (centros.data ?? []).map((i) => ({ id:i.id, nome:i.nome, descricao:i.descricao ?? "", ativo:i.ativo })) };
+}
+export async function salvarContaFinanceira(item: ContaFinanceira) { const loja = await obterLojaAtual(); const payload={ loja_id:loja.id,nome:item.nome.trim(),tipo:item.tipo,banco:item.banco.trim()||null,agencia:item.agencia.trim()||null,numero:item.numero.trim()||null,saldo_inicial:item.saldoInicial,ativa:item.ativa }; const query=item.id?createClient().from("contas_financeiras").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("contas_financeiras").insert(payload); const {data,error}=await query.select("id").single(); if(error)throw new Error(error.message); return {...item,id:data.id}; }
+export async function salvarCategoriaFinanceira(item: CategoriaFinanceira) { const loja=await obterLojaAtual(); const payload={loja_id:loja.id,nome:item.nome.trim(),natureza:item.natureza,cor:item.cor,ativa:item.ativa}; const query=item.id?createClient().from("categorias_financeiras").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("categorias_financeiras").insert(payload); const {data,error}=await query.select("id").single(); if(error)throw new Error(error.message); return {...item,id:data.id}; }
+export async function salvarCentroCusto(item: CentroCusto) { const loja=await obterLojaAtual(); const payload={loja_id:loja.id,nome:item.nome.trim(),descricao:item.descricao.trim()||null,ativo:item.ativo}; const query=item.id?createClient().from("centros_custo").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("centros_custo").insert(payload); const {data,error}=await query.select("id").single(); if(error)throw new Error(error.message); return {...item,id:data.id}; }
+export async function excluirCadastroFinanceiro(tabela: "contas_financeiras"|"categorias_financeiras"|"centros_custo", id:string){ await excluirRegistroDaLoja(tabela,id); }
 
 export async function listarObreiros(): Promise<Obreiro[]> {
   const loja = await obterLojaAtual();
@@ -130,7 +204,9 @@ export async function listarGestoes(): Promise<GestaoOperacional[]> {
     id: item.id, nomeGestao: item.nome, gestaoAnteriorRepasse: item.gestao_anterior_repasse ?? "",
     dataInicioGestao: item.data_inicio, dataFimGestao: item.data_fim ?? "", anoTrabalho: item.ano_trabalho,
     financeiroPositivoRecebido: Number(item.saldo_positivo_inicial), financeiroNegativoRecebido: Number(item.saldo_negativo_inicial),
-    observacaoRepasse: item.observacoes ?? "", cargos: (item.cargos ?? {}) as Record<string, string>, ativa: item.ativa,
+    caixaFisicoRecebido: Number(item.caixa_fisico_inicial ?? 0), contaBancariaRecebida: Number(item.conta_bancaria_inicial ?? 0),
+    creditosReceber: Number(item.creditos_receber_iniciais ?? 0), status: (item.status ?? (item.ativa ? "Atual" : "Rascunho")) as GestaoOperacional["status"],
+    observacaoRepasse: item.observacoes ?? "", cargos: (item.cargos ?? {}) as Record<string, string>, diretoria: (item.diretoria ?? {}) as Record<string, string>, ativa: item.ativa,
   }));
 }
 
@@ -145,7 +221,9 @@ export async function salvarGestaoBanco(gestao: GestaoOperacional): Promise<Gest
     loja_id: loja.id, nome: gestao.nomeGestao.trim(), gestao_anterior_repasse: gestao.gestaoAnteriorRepasse.trim() || null,
     data_inicio: gestao.dataInicioGestao, data_fim: gestao.dataFimGestao || null, ano_trabalho: gestao.anoTrabalho,
     saldo_positivo_inicial: gestao.financeiroPositivoRecebido, saldo_negativo_inicial: gestao.financeiroNegativoRecebido,
-    observacoes: gestao.observacaoRepasse || null, cargos: gestao.cargos, ativa: Boolean(gestao.ativa),
+    caixa_fisico_inicial: gestao.caixaFisicoRecebido, conta_bancaria_inicial: gestao.contaBancariaRecebida,
+    creditos_receber_iniciais: gestao.creditosReceber, status: gestao.status,
+    observacoes: gestao.observacaoRepasse || null, cargos: gestao.cargos, diretoria: gestao.diretoria, ativa: gestao.status === "Atual",
   };
   const query = gestao.id ? supabase.from("administracoes").update(payload).eq("id", gestao.id).eq("loja_id", loja.id) : supabase.from("administracoes").insert(payload);
   const { data, error } = await query.select("id").single();

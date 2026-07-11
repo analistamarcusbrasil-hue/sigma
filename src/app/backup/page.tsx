@@ -6,7 +6,7 @@ export default function BackupPage() {
     <AppShell
       secao="Backup"
       titulo="Backup dos Dados"
-      subtitulo="Baixe, restaure e proteja os dados locais do SIGMA LUMP."
+      subtitulo="Consulte a proteção e a disponibilidade dos dados do SIGMA 2.0."
     >
       <BackupDadosClient />
     </AppShell>

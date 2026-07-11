@@ -3,6 +3,8 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { excluirObreiro, listarObreiros, salvarObreiro } from "@/lib/supabase/operacional";
 import type { Obreiro } from "@/types";
+import { EmptyState, Feedback, LoadingState } from "@/components/ui/Feedback";
+import { StatusBadge } from "@/components/ui/StatusBadge";
 
 const hojeISO = () => new Date().toISOString().slice(0, 10);
 
@@ -37,6 +39,7 @@ export function ObreirosClient() {
   const [editandoId, setEditandoId] = useState<string | null>(null);
   const [erroNome, setErroNome] = useState("");
   const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
   const [mensagemErro, setMensagemErro] = useState("");
   const [busca, setBusca] = useState("");
   const [filtroSituacao, setFiltroSituacao] = useState<"Todos" | "Ativo" | "Inativo">("Todos");
@@ -85,12 +88,15 @@ export function ObreirosClient() {
     }
 
     setMensagemErro("");
+    setSalvando(true);
     try {
       const salvo = await salvarObreiro({ ...formulario, id: editandoId ?? "", nome });
       setObreiros((atuais) => editandoId ? atuais.map((item) => item.id === editandoId ? salvo : item) : [...atuais, salvo]);
       cancelarEdicao();
     } catch (erro) {
       setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível salvar o obreiro.");
+    } finally {
+      setSalvando(false);
     }
   }
 
@@ -131,8 +137,8 @@ export function ObreirosClient() {
 
   return (
     <div className="mt-8 space-y-6">
-      {mensagemErro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{mensagemErro}</div>}
-      {carregando && <div className="rounded-2xl border border-white/10 p-4 text-sm text-zinc-400">Carregando obreiros do Supabase...</div>}
+      {mensagemErro && <Feedback tone="error">{mensagemErro}</Feedback>}
+      {carregando && <LoadingState label="Carregando obreiros…" />}
       <div className="grid gap-4 sm:grid-cols-3">
         {[
           ["Total cadastrado", obreiros.length, "text-white"],
@@ -187,7 +193,7 @@ export function ObreirosClient() {
             <div><label htmlFor="observacoes" className="text-sm text-zinc-300">Observações</label><textarea id="observacoes" rows={3} value={formulario.observacoes} onChange={(e) => atualizarCampo("observacoes", e.target.value)} className={`${campo} resize-none`} placeholder="Informações complementares..." /></div>
 
             <div className="flex flex-col gap-3 sm:flex-row">
-              <button type="submit" className="flex-1 rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300">{editandoId ? "Salvar alterações" : "Cadastrar obreiro"}</button>
+              <button type="submit" disabled={salvando} className="flex-1 rounded-full bg-amber-400 px-6 py-3 font-semibold text-black transition hover:bg-amber-300 disabled:cursor-wait">{salvando ? "Salvando…" : editandoId ? "Salvar alterações" : "Cadastrar obreiro"}</button>
               {editandoId && <button type="button" onClick={cancelarEdicao} className="rounded-full border border-white/15 px-6 py-3 font-semibold text-zinc-200 transition hover:bg-white/[0.06]">Cancelar</button>}
             </div>
           </div>
@@ -228,14 +234,14 @@ export function ObreirosClient() {
           </p>
 
           <div className="mt-6 space-y-3">
-            {obreirosOrdenados.length === 0 && <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-zinc-400">Nenhum obreiro encontrado com os filtros atuais.</div>}
+            {!carregando && obreirosOrdenados.length === 0 && <EmptyState title={busca || filtroSituacao !== "Todos" ? "Nenhum resultado encontrado" : "Nenhum obreiro cadastrado"} description={busca || filtroSituacao !== "Todos" ? "Revise a pesquisa ou remova os filtros para visualizar outros cadastros." : "Cadastre o primeiro obreiro para começar a utilizar Chancelaria, Tesouraria e Secretaria."} />}
             {obreirosOrdenados.map((obreiro) => (
               <article key={obreiro.id} className="rounded-2xl border border-white/10 bg-black/20 p-5 transition hover:border-white/20">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <h4 className="truncate text-lg font-bold text-white">{obreiro.nome}</h4>
-                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ${obreiro.situacao === "Ativo" ? "bg-emerald-400/10 text-emerald-300" : "bg-zinc-400/10 text-zinc-300"}`}>{obreiro.situacao}</span>
+                      <StatusBadge status={obreiro.situacao} />
                     </div>
                     <p className="mt-2 text-sm text-zinc-300">{obreiro.grau} · {obreiro.cargo || "Sem cargo informado"}</p>
                     <p className="mt-2 break-words text-xs text-zinc-500">{obreiro.telefone || "Sem telefone"} · {obreiro.email || "Sem e-mail"} · Cadastro em {formatarData(obreiro.dataCadastro)}</p>

@@ -25,6 +25,10 @@ type GestaoLoja = {
   anoTrabalho: number;
   financeiroPositivoRecebido: number;
   financeiroNegativoRecebido: number;
+  caixaFisicoRecebido: number;
+  contaBancariaRecebida: number;
+  creditosReceber: number;
+  status: "Rascunho" | "Atual" | "Encerrada";
   observacaoRepasse?: string;
   cargos?: CargosGestao;
 };
@@ -613,6 +617,22 @@ export function DashboardClient() {
 
   return (
     <div className="mt-8 space-y-6">
+      <section aria-labelledby="acoes-rapidas" className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["/obreiros", "＋", "Novo obreiro", "Cadastre e mantenha o quadro da Loja", "from-sky-400/15"],
+          ["/chancelaria", "✓", "Realizar chamada", "Registre presença na próxima sessão", "from-emerald-400/15"],
+          ["/tesouraria", "R$", "Novo lançamento", "Registre uma entrada ou uma despesa", "from-amber-400/15"],
+          ["/secretaria", "▤", "Criar documento", "Inicie uma ata, balaústre ou ofício", "from-violet-400/15"],
+        ].map(([href, icone, titulo, descricao, cor]) => (
+          <Link key={href} href={href} className={`group rounded-3xl border border-white/10 bg-gradient-to-br ${cor} to-white/[.025] p-5 transition duration-200 hover:-translate-y-0.5 hover:border-white/20 hover:shadow-xl hover:shadow-black/20`}>
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-black/20 text-lg font-bold text-amber-200 transition group-hover:scale-105" aria-hidden="true">{icone}</span>
+            <h2 id={titulo === "Novo obreiro" ? "acoes-rapidas" : undefined} className="mt-4 font-bold text-white">{titulo}</h2>
+            <p className="mt-1 text-xs leading-5 text-zinc-400">{descricao}</p>
+            <span className="mt-4 inline-flex text-xs font-semibold text-amber-300">Abrir módulo <span aria-hidden="true" className="ml-1 transition group-hover:translate-x-1">→</span></span>
+          </Link>
+        ))}
+      </section>
+
       <section className="rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/15 to-white/[0.03] p-6">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div>
@@ -651,6 +671,9 @@ export function DashboardClient() {
               <p className="mt-2 font-semibold text-white">{nome || "Não informado"}</p>
             </div>
           ))}
+        </div>
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {[["Status", gestaoAtual?.status ?? "—"],["Saldo líquido inicial",formatarMoeda(financeiro.saldoInicial)],["Caixa físico",formatarMoeda(gestaoAtual?.caixaFisicoRecebido ?? 0)],["Conta bancária",formatarMoeda(gestaoAtual?.contaBancariaRecebida ?? 0)]].map(([rotulo,valor])=><div key={rotulo} className="rounded-2xl border border-white/10 bg-black/20 p-4"><p className="text-xs text-zinc-500">{rotulo}</p><p className="mt-1 font-bold text-amber-200">{valor}</p></div>)}
         </div>
       </section>
 
