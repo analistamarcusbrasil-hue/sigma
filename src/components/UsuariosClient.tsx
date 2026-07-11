@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { Obreiro } from "@/types";
-import { carregarObreiros } from "@/lib/obreiros";
+import { listarObreiros } from "@/lib/supabase/operacional";
 import { permissoesPadrao, type PerfilSigma, type PerfilUsuario } from "@/lib/auth";
 import { alterarStatusUsuario, atualizarUsuario, convidarUsuario, reenviarConvite } from "@/app/usuarios/actions";
 
@@ -12,7 +12,8 @@ const rotas = ["/dashboard", "/obreiros", "/secretaria", "/chancelaria", "/tesou
 const vazio = { nome: "", email: "", perfil: "Obreiro" as PerfilUsuario, obreiroId: "", permissoes: permissoesPadrao("Obreiro") };
 
 export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
-  const router = useRouter(); const [busca, setBusca] = useState(""); const [obreiros] = useState<Obreiro[]>(() => typeof window === "undefined" ? [] : carregarObreiros()); const [form, setForm] = useState(vazio); const [editando, setEditando] = useState<PerfilSigma | null>(null); const [mensagem, setMensagem] = useState(""); const [enviando, setEnviando] = useState(false);
+  const router = useRouter(); const [busca, setBusca] = useState(""); const [obreiros, setObreiros] = useState<Obreiro[]>([]); const [form, setForm] = useState(vazio); const [editando, setEditando] = useState<PerfilSigma | null>(null); const [mensagem, setMensagem] = useState(""); const [enviando, setEnviando] = useState(false);
+  useEffect(() => { listarObreiros().then(setObreiros).catch(() => setMensagem("Não foi possível carregar os obreiros.")); }, []);
   const filtrados = useMemo(() => usuarios.filter((u) => `${u.nome} ${u.email} ${u.perfil}`.toLowerCase().includes(busca.toLowerCase())), [usuarios, busca]);
   const ativos = usuarios.filter((u) => u.status === "ativo").length;
   function alterarPermissao(rota: string) { setForm((atual) => ({ ...atual, permissoes: atual.permissoes.includes(rota) ? atual.permissoes.filter((p) => p !== rota) : [...atual.permissoes, rota] })); }

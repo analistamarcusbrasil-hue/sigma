@@ -5,7 +5,7 @@ Sistema integrado de gestão maçônica para Secretaria, Chancelaria, Tesouraria
 ## Execução local
 
 ```powershell
-cd C:\Users\USER\Downloads\sigma
+cd C:\Users\USER\Downloads\sigma-nuvem
 npm install
 npm run dev
 ```
@@ -14,7 +14,13 @@ Abra `http://localhost:3000`.
 
 ## Configuração do Supabase
 
-1. Crie um projeto no Supabase e, no **SQL Editor**, execute `supabase/migrations/20260710_create_profiles.sql`.
+1. Crie um projeto no Supabase e, no **SQL Editor**, execute as migrações em ordem:
+
+   - `supabase/migrations/20260710_create_profiles.sql`
+   - `supabase/migrations/20260711_create_operational_core.sql`
+   - `supabase/migrations/20260712_complete_operational_schema.sql`
+
+   A segunda migração cria o núcleo multi-loja e as tabelas operacionais, com índices, timestamps, chaves estrangeiras e RLS. Se já existir um Administrador ativo, ela também cria a loja inicial `Loja SIGMA` e vincula esse administrador.
 2. Crie o arquivo `.env.local` (não envie ao Git) com:
 
 ```env
@@ -36,6 +42,10 @@ from auth.users where email = 'seu-email@exemplo.com';
 ```
 
 Após entrar como administrador, use **Usuários e Acessos** para enviar convites e gerenciar permissões. Senhas não são armazenadas pelo SIGMA: recuperação, convite e autenticação são tratados pelo Supabase Auth.
+
+## Persistência operacional
+
+Obreiros, visitantes, sessões e presenças já leem e gravam no Supabase. As tabelas dos demais módulos também são criadas pela migração operacional, mas suas telas continuam temporariamente no armazenamento local até a migração incremental de cada fluxo. Consulte `docs/AUDITORIA_PERSISTENCIA.md` para o inventário completo.
 
 ## Validação
 

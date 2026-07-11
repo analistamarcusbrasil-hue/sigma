@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { ativarGestaoBanco, excluirGestaoBanco, listarGestoes, salvarGestaoBanco, type GestaoOperacional } from "@/lib/supabase/operacional";
 
 type CargosGestao = {
   veneravelMestre: string;
@@ -13,18 +14,7 @@ type CargosGestao = {
   mestreCerimonias: string;
 };
 
-type GestaoLoja = {
-  id: string;
-  nomeGestao: string;
-  gestaoAnteriorRepasse: string;
-  dataInicioGestao: string;
-  dataFimGestao: string;
-  anoTrabalho: number;
-  financeiroPositivoRecebido: number;
-  financeiroNegativoRecebido: number;
-  observacaoRepasse: string;
-  cargos: CargosGestao;
-};
+type GestaoLoja = Omit<GestaoOperacional, "cargos"> & { cargos: CargosGestao };
 
 const cargosVazios: CargosGestao = {
   veneravelMestre: "",
@@ -50,10 +40,6 @@ const gestaoVazia: GestaoLoja = {
   cargos: cargosVazios,
 };
 
-function gerarId() {
-  return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-}
-
 function formatarMoeda(valor: number) {
   return valor.toLocaleString("pt-BR", {
     style: "currency",
@@ -69,16 +55,6 @@ function formatarDataBR(dataISO: string) {
   return `${dia}/${mes}/${ano}`;
 }
 
-function lerLocalStorage<T>(chave: string, fallback: T): T {
-  try {
-    const valor = localStorage.getItem(chave);
-    if (!valor) return fallback;
-    return JSON.parse(valor) as T;
-  } catch {
-    return fallback;
-  }
-}
-
 function saldoLiquido(gestao: GestaoLoja) {
   return gestao.financeiroPositivoRecebido - gestao.financeiroNegativoRecebido;
 }
@@ -88,58 +64,35 @@ export function ConfiguracoesGestaoClient() {
   const [gestaoAtualId, setGestaoAtualId] = useState("");
   const [formulario, setFormulario] = useState<GestaoLoja>(gestaoVazia);
   const [carregado, setCarregado] = useState(false);
+  const [erro, setErro] = useState("");
 
   useEffect(() => {
-    const gestoesSalvas = lerLocalStorage<GestaoLoja[]>("sigma_gestoes", []);
-    const gestaoAtualSalva = localStorage.getItem("sigma_gestao_atual_id") ?? "";
-
-    setGestoes(gestoesSalvas);
-    setGestaoAtualId(gestaoAtualSalva);
-    setCarregado(true);
+    listarGestoes()
+      .then((itens) => {
+        const normalizadas = itens.map((item) => ({ ...item, cargos: { ...cargosVazios, ...item.cargos } })) as GestaoLoja[];
+        setGestoes(normalizadas);
+        setGestaoAtualId(normalizadas.find((item) => item.ativa)?.id ?? "");
+      })
+      .catch((falha: unknown) => setErro(falha instanceof Error ? falha.message : "Não foi possível carregar as gestões."))
+      .finally(() => setCarregado(true));
   }, []);
-
-  useEffect(() => {
-    if (carregado) {
-      localStorage.setItem("sigma_gestoes", JSON.stringify(gestoes));
-    }
-  }, [gestoes, carregado]);
-
-  useEffect(() => {
-    if (carregado) {
-      localStorage.setItem("sigma_gestao_atual_id", gestaoAtualId);
-    }
-  }, [gestaoAtualId, carregado]);
 
   const gestaoAtual = useMemo(() => {
     return gestoes.find((gestao) => gestao.id === gestaoAtualId);
   }, [gestoes, gestaoAtualId]);
 
-  function aplicarGestaoAtual(gestao: GestaoLoja) {
-    setGestaoAtualId(gestao.id);
-
-    localStorage.setItem("sigma_gestao_atual_id", gestao.id);
-    localStorage.setItem("sigma_ano_trabalho", String(gestao.anoTrabalho));
-    localStorage.setItem("sigma_data_inicio_gestao", gestao.dataInicioGestao);
-    localStorage.setItem("sigma_saldo_anterior", String(saldoLiquido(gestao)));
-
-    localStorage.setItem(
-      "sigma_configuracao_gestao",
-      JSON.stringify({
-        nomeGestao: gestao.nomeGestao,
-        gestaoAnteriorRepasse: gestao.gestaoAnteriorRepasse,
-        dataInicioGestao: gestao.dataInicioGestao,
-        dataFimGestao: gestao.dataFimGestao,
-        anoTrabalho: gestao.anoTrabalho,
-        caixaInicial: gestao.financeiroPositivoRecebido,
-        dividasHerdadas: gestao.financeiroNegativoRecebido,
-        saldoLiquidoInicial: saldoLiquido(gestao),
-        observacaoSaldoInicial: gestao.observacaoRepasse,
-        ...gestao.cargos,
-      })
-    );
+  async function aplicarGestaoAtual(gestao: GestaoLoja) {
+    setErro("");
+    try {
+      await ativarGestaoBanco(gestao.id);
+      setGestaoAtualId(gestao.id);
+      setGestoes((atuais) => atuais.map((item) => ({ ...item, ativa: item.id === gestao.id })));
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível ativar a gestão.");
+    }
   }
 
-  function salvarGestao(evento: FormEvent<HTMLFormElement>) {
+  async function salvarGestao(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!formulario.nomeGestao.trim()) {
@@ -164,7 +117,7 @@ export function ConfiguracoesGestaoClient() {
 
     const gestaoParaSalvar: GestaoLoja = {
       ...formulario,
-      id: formulario.id || gerarId(),
+      id: formulario.id,
       nomeGestao: formulario.nomeGestao.trim(),
       gestaoAnteriorRepasse: formulario.gestaoAnteriorRepasse.trim(),
       observacaoRepasse: formulario.observacaoRepasse.trim(),
@@ -173,19 +126,27 @@ export function ConfiguracoesGestaoClient() {
       },
     };
 
+    let salva: GestaoLoja;
+    try {
+      salva = await salvarGestaoBanco({ ...gestaoParaSalvar, ativa: true }) as GestaoLoja;
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível salvar a gestão.");
+      return;
+    }
+
     setGestoes((atuais) => {
-      const jaExiste = atuais.some((gestao) => gestao.id === gestaoParaSalvar.id);
+      const jaExiste = atuais.some((gestao) => gestao.id === salva.id);
 
       if (jaExiste) {
         return atuais.map((gestao) =>
-          gestao.id === gestaoParaSalvar.id ? gestaoParaSalvar : gestao
+          gestao.id === salva.id ? salva : { ...gestao, ativa: false }
         );
       }
 
-      return [gestaoParaSalvar, ...atuais];
+      return [salva, ...atuais.map((gestao) => ({ ...gestao, ativa: false }))];
     });
 
-    aplicarGestaoAtual(gestaoParaSalvar);
+    setGestaoAtualId(salva.id);
     setFormulario(gestaoVazia);
 
     alert("Gestão salva e definida como gestão atual.");
@@ -203,15 +164,20 @@ export function ConfiguracoesGestaoClient() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
-  function removerGestao(id: string) {
+  async function removerGestao(id: string) {
     const confirmar = confirm("Deseja remover esta gestão?");
     if (!confirmar) return;
 
-    setGestoes((atuais) => atuais.filter((gestao) => gestao.id !== id));
+    try {
+      await excluirGestaoBanco(id);
+      setGestoes((atuais) => atuais.filter((gestao) => gestao.id !== id));
+    } catch (falha) {
+      setErro(falha instanceof Error ? falha.message : "Não foi possível remover a gestão.");
+      return;
+    }
 
     if (gestaoAtualId === id) {
       setGestaoAtualId("");
-      localStorage.removeItem("sigma_gestao_atual_id");
     }
   }
 
@@ -235,6 +201,7 @@ export function ConfiguracoesGestaoClient() {
 
   return (
     <div className="mt-8 space-y-6">
+      {erro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{erro}</div>}
       <section className="rounded-3xl border border-white/10 bg-white/[0.04] p-6">
         <h3 className="text-2xl font-bold">Cadastro de Gestão</h3>
         <p className="mt-2 text-sm text-zinc-400">

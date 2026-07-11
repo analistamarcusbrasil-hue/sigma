@@ -1,19 +1,9 @@
 "use client";
 
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { obreirosBase } from "@/lib/mock-data";
-import { carregarObreiros, normalizarObreiros, salvarObreiros } from "@/lib/obreiros";
 import { ModuleQuickNav } from "@/components/ModuleQuickNav";
-import type { Obreiro, RegistroPresenca, StatusPresenca } from "@/types";
-
-type Sessao = {
-  id: string;
-  data: string;
-  tipo: string;
-  grau: string;
-  titulo: string;
-  observacao: string;
-};
+import { excluirSessao, listarObreiros, listarPresencas, listarSessoes, salvarObreiro, salvarPresencas, salvarSessao } from "@/lib/supabase/operacional";
+import type { Obreiro, RegistroPresenca, Sessao, StatusPresenca } from "@/types";
 
 type FiltroStatus = "Todos" | StatusPresenca;
 
@@ -91,10 +81,6 @@ const sessaoVazia = {
   observacao: "",
 };
 
-function gerarId() {
-  return globalThis.crypto?.randomUUID?.() ?? String(Date.now());
-}
-
 function formatarDataBR(dataISO: string) {
   if (!dataISO) return "";
   const [ano, mes, dia] = dataISO.split("-");
@@ -151,7 +137,7 @@ export function ChancelariaClient() {
   const [sessaoSelecionada, setSessaoSelecionada] = useState("");
   const [novaSessao, setNovaSessao] = useState(sessaoVazia);
   const [sessaoEmEdicao, setSessaoEmEdicao] = useState<string | null>(null);
-  const [obreiros, setObreiros] = useState<Obreiro[]>(normalizarObreiros(obreirosBase));
+  const [obreiros, setObreiros] = useState<Obreiro[]>([]);
   const [presencas, setPresencas] = useState<RegistroPresenca[]>([]);
   const [carregado, setCarregado] = useState(false);
   const [busca, setBusca] = useState("");
@@ -159,47 +145,30 @@ export function ChancelariaClient() {
   const [aba, setAba] = useState<"chamada" | "relatorio">("chamada");
   const [somenteAtivos, setSomenteAtivos] = useState(true);
   const [visitante, setVisitante] = useState<Obreiro>(visitanteVazio);
+  const [mensagemErro, setMensagemErro] = useState("");
 
   useEffect(() => {
-    const presencasSalvas = localStorage.getItem("sigma_presencas");
-    const sessoesSalvas = localStorage.getItem("sigma_sessoes");
-
-    setObreiros(carregarObreiros());
-
-    if (presencasSalvas) {
-      setPresencas(JSON.parse(presencasSalvas));
-    }
-
-    if (sessoesSalvas) {
-      const sessoesCarregadas = normalizarSessoes(JSON.parse(sessoesSalvas));
-      const ordenadas = [...sessoesCarregadas].sort(
+    Promise.all([listarObreiros(), listarSessoes(), listarPresencas()])
+      .then(([obreirosCarregados, sessoesCarregadas, presencasCarregadas]) => {
+        setObreiros(obreirosCarregados);
+        setPresencas(presencasCarregadas);
+        const ordenadas = [...normalizarSessoes(sessoesCarregadas)].sort(
         (a, b) => parseDataISO(a.data).getTime() - parseDataISO(b.data).getTime()
       );
-
-      setSessoes(ordenadas);
-      setSessaoSelecionada(ordenadas.at(-1)?.id ?? "");
-    }
-
-    setCarregado(true);
+        setSessoes(ordenadas);
+        setSessaoSelecionada(ordenadas.at(-1)?.id ?? "");
+      })
+      .catch((erro: unknown) => setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível carregar a frequência."))
+      .finally(() => setCarregado(true));
   }, []);
 
   useEffect(() => {
-    if (carregado) {
-      salvarObreiros(obreiros);
-    }
-  }, [obreiros, carregado]);
-
-  useEffect(() => {
-    if (carregado) {
-      localStorage.setItem("sigma_presencas", JSON.stringify(presencas));
-    }
+    if (!carregado || presencas.length === 0) return;
+    const timer = window.setTimeout(() => {
+      salvarPresencas(presencas).catch((erro: unknown) => setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível salvar as presenças."));
+    }, 400);
+    return () => window.clearTimeout(timer);
   }, [presencas, carregado]);
-
-  useEffect(() => {
-    if (carregado) {
-      localStorage.setItem("sigma_sessoes", JSON.stringify(sessoes));
-    }
-  }, [sessoes, carregado]);
 
   const sessoesOrdenadas = useMemo(() => {
     return [...sessoes].sort(
@@ -359,7 +328,7 @@ export function ChancelariaClient() {
     };
   }
 
-  function cadastrarSessao(evento: FormEvent<HTMLFormElement>) {
+  async function cadastrarSessao(evento: FormEvent<HTMLFormElement>) {
     evento.preventDefault();
 
     if (!novaSessao.data) {
@@ -377,26 +346,15 @@ export function ChancelariaClient() {
       observacao: novaSessao.observacao.trim(),
     };
 
-    if (sessaoEmEdicao) {
-      setSessoes((atuais) =>
-        atuais.map((sessao) =>
-          sessao.id === sessaoEmEdicao ? { ...sessao, ...dadosSessao } : sessao
-        )
-      );
-      setSessaoSelecionada(sessaoEmEdicao);
+    try {
+      const salva = await salvarSessao({ id: sessaoEmEdicao ?? "", ...dadosSessao });
+      setSessoes((atuais) => sessaoEmEdicao ? atuais.map((sessao) => sessao.id === sessaoEmEdicao ? salva : sessao) : [...atuais, salva]);
+      setSessaoSelecionada(salva.id);
       setSessaoEmEdicao(null);
       setNovaSessao(sessaoVazia);
-      return;
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível salvar a sessão.");
     }
-
-    const nova: Sessao = {
-      id: gerarId(),
-      ...dadosSessao,
-    };
-
-    setSessoes((atuais) => [...atuais, nova]);
-    setSessaoSelecionada(nova.id);
-    setNovaSessao(sessaoVazia);
   }
 
   function iniciarEdicaoSessao(sessao: Sessao) {
@@ -413,7 +371,7 @@ export function ChancelariaClient() {
       tipo: sessao.tipo,
       grau: sessao.grau,
       titulo: sessao.titulo,
-      observacao: sessao.observacao,
+      observacao: sessao.observacao ?? "",
     });
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -434,7 +392,7 @@ export function ChancelariaClient() {
     });
   }
 
-  function removerSessaoPorId(sessaoId: string) {
+  async function removerSessaoPorId(sessaoId: string) {
     const sessao = sessoes.find((item) => item.id === sessaoId);
     if (!sessao) return;
 
@@ -443,6 +401,13 @@ export function ChancelariaClient() {
     );
 
     if (!confirmar) return;
+
+    try {
+      await excluirSessao(sessaoId);
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível excluir a sessão.");
+      return;
+    }
 
     const restantes = sessoesOrdenadas.filter((item) => item.id !== sessaoId);
 
@@ -551,7 +516,7 @@ export function ChancelariaClient() {
     });
   }
 
-  function cadastrarVisitante() {
+  async function cadastrarVisitante() {
     if (!sessaoSelecionada) {
       alert("Selecione uma sessão antes de cadastrar visitante.");
       return;
@@ -562,15 +527,23 @@ export function ChancelariaClient() {
       return;
     }
 
-    const novoVisitante: Obreiro = {
+    const dadosVisitante: Obreiro = {
       ...visitante,
-      id: gerarId(),
+      id: "",
       nome: visitante.nome.trim(),
       cargo: "Visitante",
       situacao: "Ativo",
       tipo: "Visitante",
       lojaOrigem: visitante.lojaOrigem?.trim() ?? "",
     };
+
+    let novoVisitante: Obreiro;
+    try {
+      novoVisitante = await salvarObreiro(dadosVisitante);
+    } catch (erro) {
+      setMensagemErro(erro instanceof Error ? erro.message : "Não foi possível cadastrar o visitante.");
+      return;
+    }
 
     setObreiros((atuais) => [...atuais, novoVisitante]);
 
@@ -728,6 +701,7 @@ export function ChancelariaClient() {
 
   return (
     <div className="mt-8 space-y-6">
+      {mensagemErro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{mensagemErro}</div>}
       <ModuleQuickNav
         titulo="Rotina de frequência"
         descricao="Cadastre a sessão, faça a chamada e acompanhe o histórico."
