@@ -7,7 +7,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      // Os módulos legados hidratam dados do localStorage ao montar a tela.
+      // As telas hidratam dados remotos do Supabase ao montar.
       "react-hooks/set-state-in-effect": "off",
     },
   },
