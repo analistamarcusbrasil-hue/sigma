@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{PatrimonioClient}from"@/components/PatrimonioClient";export default function Page(){return <AppShell secao="Governança" titulo="Patrimônio" subtitulo="Controle os bens recebidos, adquiridos, baixados e repassados pela gestão."><PatrimonioClient/></AppShell>}
