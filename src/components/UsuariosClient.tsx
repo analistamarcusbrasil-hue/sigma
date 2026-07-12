@@ -10,9 +10,9 @@ import { permissoesPadrao, type PerfilSigma, type PerfilUsuario } from "@/lib/au
 import { listarObreiros } from "@/lib/supabase/operacional";
 import type { Obreiro } from "@/types";
 
-const perfis: PerfilUsuario[] = ["Administrador", "Venerável Mestre", "Secretário", "Tesoureiro", "Chanceler", "Obreiro"];
-const rotas = ["/dashboard", "/agenda", "/obreiros", "/secretaria", "/chancelaria", "/tesouraria", "/prestacao-contas", "/configuracoes", "/auditoria", "/backup", "/usuarios"];
-const nomesRotas: Record<string, string> = { "/dashboard": "Dashboard", "/agenda": "Agenda", "/obreiros": "Obreiros", "/secretaria": "Secretaria", "/chancelaria": "Chancelaria", "/tesouraria": "Tesouraria", "/prestacao-contas": "Prestação de contas", "/configuracoes": "Configurações", "/auditoria": "Auditoria", "/backup": "Backup", "/usuarios": "Usuários" };
+const perfis: PerfilUsuario[] = ["Administrador", "Venerável Mestre", "Secretário", "Tesoureiro", "Chanceler", "Orador", "Consulta", "Obreiro"];
+const rotas = ["/dashboard", "/agenda", "/obreiros", "/secretaria", "/chancelaria", "/tesouraria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/backup", "/usuarios"];
+const nomesRotas: Record<string, string> = { "/dashboard": "Dashboard", "/agenda": "Agenda", "/obreiros": "Obreiros", "/secretaria": "Secretaria", "/chancelaria": "Chancelaria", "/tesouraria": "Tesouraria", "/prestacao-contas": "Prestação de contas", "/patrimonio":"Patrimônio","/documentos":"Documentos", "/configuracoes": "Configurações", "/auditoria": "Auditoria", "/backup": "Backup", "/usuarios": "Usuários" };
 const vazio = { nome: "", email: "", perfil: "Obreiro" as PerfilUsuario, obreiroId: "", permissoes: permissoesPadrao("Obreiro") };
 const campo = "w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-white";
 

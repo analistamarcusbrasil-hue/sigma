@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { podeAcessarModulo, type PerfilSigma } from "@/lib/auth";
 import { modulos } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
@@ -47,6 +47,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
   const [carregando, setCarregando] = useState(true);
   const [saindo, setSaindo] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const acessoRegistrado = useRef("");
 
   useEffect(() => {
     const supabase = createClient();
@@ -86,6 +87,8 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
     () => Boolean(usuario && (pathname.startsWith("/agenda") || usuario.perfil === "Administrador" || (usuario.perfil === "Venerável Mestre" && pathname.startsWith("/auditoria")) || podeAcessarModulo(usuario.permissoes, pathname))),
     [usuario, pathname],
   );
+
+  useEffect(()=>{if(!usuario||acessoPermitido||acessoRegistrado.current===pathname)return;acessoRegistrado.current=pathname;const supabase=createClient();void supabase.from("loja_usuarios").select("loja_id").limit(1).maybeSingle().then(({data})=>{if(data?.loja_id)return supabase.rpc("registrar_evento_seguranca",{alvo_loja:data.loja_id,modulo:pathname,acao:"visualizar",resultado:"bloqueado",descricao:"Tentativa de acesso direto a módulo sem permissão.",motivo:null});});},[usuario,acessoPermitido,pathname]);
 
   async function sair() {
     setSaindo(true);
