@@ -735,7 +735,7 @@ export function TesourariaClient() {
         titulo="Rotina financeira"
         descricao="Priorize o caixa atual e depois registre as movimentações."
         itens={[
-          { href: "#visao-financeira", titulo: "Visão financeira", descricao: "Saldo e alertas do período.", destaque: "amber" },
+          { href: "/tesouraria/livro-caixa", titulo: "Livro Caixa", descricao: "Entradas, saídas, saldos e comprovantes.", destaque: "amber" },
           { href: "#mensalidades", titulo: "Mensalidades", descricao: "Cobrança e recebimentos.", destaque: "emerald" },
           { href: "#custos", titulo: "Custos da Loja", descricao: "Obrigações e parcelas.", destaque: "sky" },
           { href: "/tesouraria/configuracoes", titulo: "Configuração", descricao: "Contas, categorias e centros de custo.", destaque: "amber" },

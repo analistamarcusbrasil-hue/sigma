@@ -45,10 +45,12 @@ export type EventoAuditoria = {
 export type TipoEventoAgenda = "Sessão" | "Reunião" | "Cerimônia" | "Evento social" | "Prazo" | "Financeiro" | "Comissão" | "Outro";
 export type StatusEventoAgenda = "Planejado" | "Confirmado" | "Concluído" | "Cancelado";
 export type EventoAgenda = { id: string; sessaoId: string; titulo: string; tipo: TipoEventoAgenda; descricao: string; inicio: string; fim: string; diaInteiro: boolean; local: string; responsavelId: string; status: StatusEventoAgenda; recorrencia: "Nenhuma" | "Semanal" | "Mensal" | "Anual"; lembreteMinutos: number | null };
-export type ContaFinanceira = { id: string; nome: string; tipo: "Caixa" | "Conta corrente" | "Poupança" | "Investimento"; banco: string; agencia: string; numero: string; saldoInicial: number; ativa: boolean };
-export type CategoriaFinanceira = { id: string; nome: string; natureza: "Receita" | "Despesa"; cor: string; ativa: boolean };
+export type ContaFinanceira = { id: string; nome: string; tipo: "Caixa" | "Conta corrente" | "Poupança" | "Investimento" | "PIX" | "Outros"; banco: string; agencia: string; numero: string; saldoInicial: number; ativa: boolean };
+export type CategoriaFinanceira = { id: string; nome: string; natureza: "Receita" | "Despesa" | "Ambos"; cor: string; ativa: boolean };
 export type CentroCusto = { id: string; nome: string; descricao: string; ativo: boolean };
 export type CadastrosFinanceiros = { contas: ContaFinanceira[]; categorias: CategoriaFinanceira[]; centros: CentroCusto[] };
+export type StatusLivroCaixa = "Rascunho" | "Lançado" | "Conferido" | "Aprovado" | "Conciliado" | "Cancelado";
+export type LancamentoLivroCaixa = { id:string; gestaoId:string; data:string; competencia:string; natureza:"Entrada"|"Saída"; origem:"Manual"|"Mensalidade"|"Tronco"|"Despesa"|"Evento"|"Repasse"|"Outro"; contaId:string; categoriaId:string; centroCustoId:string; formaPagamento:string; valor:number; descricao:string; observacoes:string; status:StatusLivroCaixa; comprovanteUrl:string; comprovanteObservacao:string; documentoNumero:string; comprovanteData:string; responsavelId:string; criadoEm:string; atualizadoEm:string };
 
 function mensagem(error: { message: string } | null, fallback: string) {
   if (error) throw new Error(error.message);
@@ -120,6 +122,16 @@ export async function salvarContaFinanceira(item: ContaFinanceira) { const loja 
 export async function salvarCategoriaFinanceira(item: CategoriaFinanceira) { const loja=await obterLojaAtual(); const payload={loja_id:loja.id,nome:item.nome.trim(),natureza:item.natureza,cor:item.cor,ativa:item.ativa}; const query=item.id?createClient().from("categorias_financeiras").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("categorias_financeiras").insert(payload); const {data,error}=await query.select("id").single(); if(error)throw new Error(error.message); return {...item,id:data.id}; }
 export async function salvarCentroCusto(item: CentroCusto) { const loja=await obterLojaAtual(); const payload={loja_id:loja.id,nome:item.nome.trim(),descricao:item.descricao.trim()||null,ativo:item.ativo}; const query=item.id?createClient().from("centros_custo").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("centros_custo").insert(payload); const {data,error}=await query.select("id").single(); if(error)throw new Error(error.message); return {...item,id:data.id}; }
 export async function excluirCadastroFinanceiro(tabela: "contas_financeiras"|"categorias_financeiras"|"centros_custo", id:string){ await excluirRegistroDaLoja(tabela,id); }
+
+export async function listarLivroCaixa(): Promise<LancamentoLivroCaixa[]> {
+  const loja=await obterLojaAtual(); const {data,error}=await createClient().from("lancamentos_financeiros").select("*").eq("loja_id",loja.id).order("data",{ascending:false}); if(error)throw new Error(error.message);
+  return (data??[]).map((i)=>({id:i.id,gestaoId:i.administracao_id??"",data:i.data,competencia:i.competencia??i.data,natureza:(i.natureza??(i.tipo==="Despesa"?"Saída":"Entrada")) as LancamentoLivroCaixa["natureza"],origem:(i.origem??"Manual") as LancamentoLivroCaixa["origem"],contaId:i.conta_id??"",categoriaId:i.categoria_id??"",centroCustoId:i.centro_custo_id??"",formaPagamento:i.forma_pagamento??"",valor:Number(i.valor),descricao:i.descricao,observacoes:i.observacoes??"",status:(i.status_caixa??"Lançado") as StatusLivroCaixa,comprovanteUrl:i.comprovante_url??"",comprovanteObservacao:i.comprovante_observacao??"",documentoNumero:i.documento_numero??"",comprovanteData:i.comprovante_data??"",responsavelId:i.responsavel_id??"",criadoEm:i.created_at,atualizadoEm:i.updated_at}));
+}
+export async function salvarLancamentoLivroCaixa(item:LancamentoLivroCaixa):Promise<LancamentoLivroCaixa>{
+ const loja=await obterLojaAtual(); const payload={loja_id:loja.id,administracao_id:item.gestaoId||null,data:item.data,competencia:item.competencia||item.data,natureza:item.natureza,origem:item.origem,conta_id:item.contaId,categoria_id:item.categoriaId,centro_custo_id:item.centroCustoId||null,forma_pagamento:item.formaPagamento||null,valor:item.valor,descricao:item.descricao.trim(),observacoes:item.observacoes.trim()||null,status_caixa:item.status,comprovante_url:item.comprovanteUrl.trim()||null,comprovante_observacao:item.comprovanteObservacao.trim()||null,documento_numero:item.documentoNumero.trim()||null,comprovante_data:item.comprovanteData||null,tipo:item.origem==="Tronco"?"Tronco de Solidariedade":item.natureza==="Saída"?"Despesa":"Receita Extra"};
+ const query=item.id?createClient().from("lancamentos_financeiros").update(payload).eq("id",item.id).eq("loja_id",loja.id):createClient().from("lancamentos_financeiros").insert(payload); const {data,error}=await query.select("id,administracao_id,created_at,updated_at,responsavel_id").single();if(error)throw new Error(error.message);return{...item,id:data.id,gestaoId:data.administracao_id??item.gestaoId,responsavelId:data.responsavel_id??item.responsavelId,criadoEm:data.created_at,atualizadoEm:data.updated_at};
+}
+export async function excluirLancamentoLivroCaixa(id:string){await excluirRegistroDaLoja("lancamentos_financeiros",id);}
 
 export async function listarObreiros(): Promise<Obreiro[]> {
   const loja = await obterLojaAtual();
@@ -257,7 +269,7 @@ export async function carregarTesouraria(): Promise<TesourariaBanco> {
   return {
     regras: (regras.data ?? []).map((i) => ({ id: i.id, dataInicio: i.data_inicio, valor: Number(i.valor), descricao: i.descricao ?? "" })),
     recebimentos: (recebimentos.data ?? []).map((i) => ({ id: i.id, obreiroId: i.obreiro_id, mesLancamento: String(i.data).slice(0, 7), valor: Number(i.valor) })),
-    lancamentos: (lancamentos.data ?? []).map((i) => ({ id: i.id, data: i.data, tipo: i.tipo, descricao: i.descricao, valor: Number(i.valor), sessaoId: i.sessao_id ?? undefined })),
+    lancamentos: (lancamentos.data ?? []).filter((i) => !["Rascunho", "Cancelado"].includes(i.status_caixa ?? "Lançado")).map((i) => ({ id: i.id, data: i.data, tipo: i.tipo, descricao: i.descricao, valor: Number(i.valor), sessaoId: i.sessao_id ?? undefined })),
     custos: (custos.data ?? []).map((i) => ({ id: i.id, fornecedorNome: i.fornecedor_nome, cnpj: i.cnpj ?? "", tipoDivida: i.tipo_divida, descricao: i.descricao ?? "", valorTotal: Number(i.valor_total), parcelasQtd: i.parcelas_qtd, dataInicio: i.data_inicio, dataFim: i.data_fim ?? "", parcelas: Array.isArray(i.parcelas) ? i.parcelas : [] })),
   };
 }
