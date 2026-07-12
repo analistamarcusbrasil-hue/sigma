@@ -23,8 +23,9 @@ Homologado em 12/07/2026 no projeto `rvkkwspikkgjgruosdwh`.
 | 20260724 | Segurança de acesso | perfis, ações e eventos de segurança |
 | 20260725 | Permissões por ação | RLS financeira e desbloqueios justificados |
 | 20260726 | Alinhamento da homologação | RLS por ação em documentos e patrimônio |
+| 20260727 | Portal e comunicação | solicitações, comunicados, visibilidade e RLS individual |
 
-As migrations 10–26 constam no histórico remoto e foram confirmadas como sincronizadas em 12/07/2026. A migration 26 é aditiva e não remove dados.
+As migrations 10–26 constam no histórico remoto. A migration 27 é aditiva, não remove dados e deve ser aplicada junto à publicação do Portal do Obreiro.
 
 ## Aplicação segura
 

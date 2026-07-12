@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{PortalObreiroClient}from"@/components/PortalObreiroClient";export default function Page(){return <AppShell secao="Portal e Comunicação" titulo="Portal do Obreiro" subtitulo="Consulte seus dados, frequência, mensalidades, agenda, documentos e solicitações."><PortalObreiroClient/></AppShell>}

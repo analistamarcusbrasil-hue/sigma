@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{ComunicadosClient}from"@/components/ComunicadosClient";export default function Page(){return <AppShell secao="Portal e Comunicação" titulo="Comunicados Internos" subtitulo="Publique avisos segmentados para os Obreiros e a diretoria."><ComunicadosClient/></AppShell>}
