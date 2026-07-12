@@ -1,5 +1,10 @@
 # Roadmap do SIGMA 2.0 após homologação
 
+## Portal do Obreiro
+
+- Portal, solicitações e comunicados internos implementados com RLS individual.
+- Próximo passo: upload privado de comprovantes, notificações e confirmação de leitura avançada.
+
 ## Prioridade 1 — ambiente de homologação
 
 - Criar projeto Supabase separado para testes e dados sintéticos.

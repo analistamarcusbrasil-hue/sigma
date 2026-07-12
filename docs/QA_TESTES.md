@@ -41,3 +41,7 @@ Após merge, acompanhe os checks da Vercel, teste login e rotas principais com u
 ## Limitações
 
 Componentes ainda são fortemente acoplados ao browser e ao Supabase; por isso não foi adicionada Testing Library agora. E2E com Playwright deve usar projeto e usuários exclusivos de homologação, com limpeza transacional. Os 15 avisos legados de lint permanecem sem impedir o build.
+
+## Portal do Obreiro
+
+Validar usuário Obreiro com e sem `obreiro_id`, isolamento de presenças/mensalidades, documento público e individual, comunicado publicado, criação de solicitação e resposta pela diretoria. O smoke test confere as policies individuais da migration 27.

@@ -20,5 +20,8 @@
 - [ ] Executar `npm run test`.
 - [ ] Executar `npm run build`.
 - [ ] Confirmar checks do GitHub e deploy da Vercel.
+- [ ] Testar Obreiro vinculado e sem vínculo no Portal.
+- [ ] Confirmar que um Obreiro não consulta frequência, mensalidade ou documento individual de outro.
+- [ ] Testar comunicado publicado e solicitação respondida.
 - [ ] Registrar commit, data, responsável e versão publicada.
 

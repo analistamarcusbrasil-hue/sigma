@@ -11,7 +11,7 @@ const tipos: TipoEventoAgenda[] = ["Sessão", "Reunião", "Cerimônia", "Evento 
 const status: StatusEventoAgenda[] = ["Planejado", "Confirmado", "Concluído", "Cancelado"];
 const campo = "w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3";
 const hojeLocal = () => { const agora = new Date(); agora.setMinutes(agora.getMinutes() - agora.getTimezoneOffset()); return agora.toISOString().slice(0, 16); };
-const vazio = (): EventoAgenda => ({ id: "", sessaoId: "", titulo: "", tipo: "Sessão", descricao: "", inicio: hojeLocal(), fim: "", diaInteiro: false, local: "", responsavelId: "", status: "Planejado", recorrencia: "Nenhuma", lembreteMinutos: 60 });
+const vazio = (): EventoAgenda => ({ id: "", sessaoId: "", titulo: "", tipo: "Sessão", descricao: "", inicio: hojeLocal(), fim: "", diaInteiro: false, local: "", responsavelId: "", status: "Planejado", recorrencia: "Nenhuma", lembreteMinutos: 60, visibilidade:"Público da Loja" });
 const paraInput = (iso: string) => { if (!iso) return ""; const data = new Date(iso); data.setMinutes(data.getMinutes() - data.getTimezoneOffset()); return data.toISOString().slice(0, 16); };
 const paraIso = (local: string) => local ? new Date(local).toISOString() : "";
 const chaveData = (iso: string) => new Date(iso).toLocaleDateString("sv-SE");

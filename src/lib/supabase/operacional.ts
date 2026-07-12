@@ -44,7 +44,7 @@ export type EventoAuditoria = {
 };
 export type TipoEventoAgenda = "Sessão" | "Reunião" | "Cerimônia" | "Evento social" | "Prazo" | "Financeiro" | "Comissão" | "Outro";
 export type StatusEventoAgenda = "Planejado" | "Confirmado" | "Concluído" | "Cancelado";
-export type EventoAgenda = { id: string; sessaoId: string; titulo: string; tipo: TipoEventoAgenda; descricao: string; inicio: string; fim: string; diaInteiro: boolean; local: string; responsavelId: string; status: StatusEventoAgenda; recorrencia: "Nenhuma" | "Semanal" | "Mensal" | "Anual"; lembreteMinutos: number | null };
+export type EventoAgenda = { id: string; sessaoId: string; titulo: string; tipo: TipoEventoAgenda; descricao: string; inicio: string; fim: string; diaInteiro: boolean; local: string; responsavelId: string; status: StatusEventoAgenda; recorrencia: "Nenhuma" | "Semanal" | "Mensal" | "Anual"; lembreteMinutos: number | null; visibilidade: "Público da Loja"|"Diretoria"|"Administração"|"Restrito" };
 export type ContaFinanceira = { id: string; nome: string; tipo: "Caixa" | "Conta corrente" | "Poupança" | "Investimento" | "PIX" | "Outros"; banco: string; agencia: string; numero: string; saldoInicial: number; ativa: boolean };
 export type CategoriaFinanceira = { id: string; nome: string; natureza: "Receita" | "Despesa" | "Ambos"; cor: string; ativa: boolean };
 export type CentroCusto = { id: string; nome: string; descricao: string; ativo: boolean };
@@ -94,12 +94,12 @@ export async function listarAgenda(): Promise<EventoAgenda[]> {
   const loja = await obterLojaAtual();
   const { data, error } = await createClient().from("agenda_eventos").select("*").eq("loja_id", loja.id).order("inicio");
   if (error) throw new Error(error.message);
-  return (data ?? []).map((item) => ({ id: item.id, sessaoId: item.sessao_id ?? "", titulo: item.titulo, tipo: item.tipo as TipoEventoAgenda, descricao: item.descricao ?? "", inicio: item.inicio, fim: item.fim ?? "", diaInteiro: item.dia_inteiro, local: item.local ?? "", responsavelId: item.responsavel_id ?? "", status: item.status as StatusEventoAgenda, recorrencia: item.recorrencia as EventoAgenda["recorrencia"], lembreteMinutos: item.lembrete_minutos }));
+  return (data ?? []).map((item) => ({ id: item.id, sessaoId: item.sessao_id ?? "", titulo: item.titulo, tipo: item.tipo as TipoEventoAgenda, descricao: item.descricao ?? "", inicio: item.inicio, fim: item.fim ?? "", diaInteiro: item.dia_inteiro, local: item.local ?? "", responsavelId: item.responsavel_id ?? "", status: item.status as StatusEventoAgenda, recorrencia: item.recorrencia as EventoAgenda["recorrencia"], lembreteMinutos: item.lembrete_minutos, visibilidade:(item.visibilidade??"Público da Loja") as EventoAgenda["visibilidade"] }));
 }
 
 export async function salvarEventoAgenda(evento: EventoAgenda): Promise<EventoAgenda> {
   const loja = await obterLojaAtual();
-  const payload = { loja_id: loja.id, sessao_id: evento.sessaoId || null, titulo: evento.titulo.trim(), tipo: evento.tipo, descricao: evento.descricao.trim() || null, inicio: evento.inicio, fim: evento.fim || null, dia_inteiro: evento.diaInteiro, local: evento.local.trim() || null, responsavel_id: evento.responsavelId || null, status: evento.status, recorrencia: evento.recorrencia, lembrete_minutos: evento.lembreteMinutos };
+  const payload = { loja_id: loja.id, sessao_id: evento.sessaoId || null, titulo: evento.titulo.trim(), tipo: evento.tipo, descricao: evento.descricao.trim() || null, inicio: evento.inicio, fim: evento.fim || null, dia_inteiro: evento.diaInteiro, local: evento.local.trim() || null, responsavel_id: evento.responsavelId || null, status: evento.status, recorrencia: evento.recorrencia, lembrete_minutos: evento.lembreteMinutos, visibilidade:evento.visibilidade };
   const query = evento.id ? createClient().from("agenda_eventos").update(payload).eq("id", evento.id).eq("loja_id", loja.id) : createClient().from("agenda_eventos").insert(payload);
   const { data, error } = await query.select("id").single();
   if (error) throw new Error(error.message);
