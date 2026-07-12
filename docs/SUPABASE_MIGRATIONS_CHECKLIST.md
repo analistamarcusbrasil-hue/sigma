@@ -24,7 +24,7 @@ Homologado em 12/07/2026 no projeto `rvkkwspikkgjgruosdwh`.
 | 20260725 | Permissões por ação | RLS financeira e desbloqueios justificados |
 | 20260726 | Alinhamento da homologação | RLS por ação em documentos e patrimônio |
 
-As migrations 10–25 já constavam no histórico remoto durante a homologação. A migration 26 é aditiva, não remove dados e deve ser aplicada depois do merge.
+As migrations 10–26 constam no histórico remoto e foram confirmadas como sincronizadas em 12/07/2026. A migration 26 é aditiva e não remove dados.
 
 ## Aplicação segura
 
