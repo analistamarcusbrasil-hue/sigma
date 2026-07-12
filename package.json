@@ -7,9 +7,13 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "test:unit": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
     "test:permissions": "node --experimental-strip-types scripts/test-permissions.mjs",
     "test:homologacao": "node scripts/test-homologacao.mjs",
-    "test": "npm run test:permissions && npm run test:homologacao"
+    "test": "npm run test:unit && npm run test:permissions && npm run test:homologacao",
+    "check": "npm run lint && npm run test && npm run build"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
@@ -24,10 +28,12 @@
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "optionalDependencies": {
     "@tailwindcss/oxide-linux-x64-gnu": "^4.3.2"
