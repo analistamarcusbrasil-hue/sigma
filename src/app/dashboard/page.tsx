@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/AppShell";
 import { DashboardClient } from "@/components/DashboardClient";
+import { FechamentosResumoClient } from "@/components/FechamentosResumoClient";
 
 export default function DashboardPage() {
   return (
@@ -9,6 +10,7 @@ export default function DashboardPage() {
       subtitulo="Visão geral da Loja com caixa, repasse, diretoria, tesouraria, chancelaria, secretaria e alertas importantes."
     >
       <DashboardClient />
+      <FechamentosResumoClient />
     </AppShell>
   );
 }
