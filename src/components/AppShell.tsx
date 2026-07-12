@@ -9,6 +9,7 @@ import { modulos } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
 import { AccessBoundary } from "@/components/AccessBoundary";
 import { moduloDaRota } from "@/lib/auth";
+import { definirLojaAtiva, lojaAtivaId } from "@/lib/loja-ativa";
 
 type AppShellProps = {
   secao: string;
@@ -49,6 +50,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
   const [carregando, setCarregando] = useState(true);
   const [saindo, setSaindo] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
+  const [lojas,setLojas]=useState<{id:string;nome:string;perfil:string}[]>([]);const[lojaId,setLojaId]=useState("");
   const acessoRegistrado = useRef("");
 
   useEffect(() => {
@@ -64,6 +66,8 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
         return;
       }
       if (ativo) {
+        const{data:vinculos}=await supabase.from("loja_usuarios").select("loja_id,perfil,lojas(id,nome)").eq("usuario_id",user.id).eq("status","ativo");
+        const lista=(vinculos??[]).map(v=>{const l=v.lojas as unknown as {id:string;nome:string};return{id:l.id,nome:l.nome,perfil:v.perfil||perfil.perfil};});const preferida=lojaAtivaId();const escolhida=lista.find(l=>l.id===preferida)??lista[0];if(escolhida&&!preferida)definirLojaAtiva(escolhida.id);setLojas(lista);setLojaId(escolhida?.id??"");
         setUsuario({ ...perfil, permissoes: Array.isArray(perfil.permissoes) ? perfil.permissoes : [] } as PerfilSigma);
         setCarregando(false);
       }
@@ -122,6 +126,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
         })}
       </nav>
       <div className="mt-4 rounded-2xl border border-white/10 bg-slate-950/35 p-3">
+        {lojas.length>0&&<label className="mb-3 block text-xs text-slate-400">Loja ativa<select value={lojaId} onChange={e=>{definirLojaAtiva(e.target.value);setLojaId(e.target.value);window.location.reload();}} className="mt-1 w-full rounded-lg border border-white/10 bg-slate-900 p-2 text-sm text-white">{lojas.map(l=><option key={l.id} value={l.id}>{l.nome} · {l.perfil}</option>)}</select></label>}
         <div className="flex items-center gap-3"><div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-400 font-black text-black" aria-hidden="true">{iniciais(usuario.nome)}</div><div className="min-w-0"><p className="truncate text-sm font-bold">{usuario.nome}</p><p className="truncate text-xs text-amber-300">{usuario.perfil}</p></div></div>
         <button type="button" onClick={sair} disabled={saindo} className="mt-4 w-full rounded-xl border border-white/10 px-4 py-2.5 text-sm font-semibold text-zinc-300 transition hover:border-red-400/40 hover:bg-red-400/10 hover:text-red-200">{saindo ? "Saindo…" : "Sair da conta"}</button>
       </div>

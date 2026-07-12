@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{LojaClient}from"@/components/LojaClient";export default function Page(){return <AppShell secao="Configurações" titulo="Cadastro da Loja" subtitulo="Você está administrando os dados e a identidade da Loja ativa."><LojaClient/></AppShell>}
