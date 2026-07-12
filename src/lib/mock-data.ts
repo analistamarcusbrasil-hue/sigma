@@ -36,6 +36,8 @@ export const modulos = [
     href: "/prestacao-contas",
     descricao: "Relatório sintético e analítico de receitas, despesas, saldo e repasse.",
   },
+  { nome: "Patrimônio", href: "/patrimonio", descricao: "Bens, conservação, baixas e repasses da Loja." },
+  { nome: "Documentos", href: "/documentos", descricao: "Arquivo administrativo, anexos e comprovantes." },
   {
     nome: "Configurações",
     href: "/configuracoes",

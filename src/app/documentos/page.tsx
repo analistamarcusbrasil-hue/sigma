@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{DocumentosGestaoClient}from"@/components/DocumentosGestaoClient";export default function Page(){return <AppShell secao="Governança" titulo="Documentos" subtitulo="Centralize documentos administrativos, comprovantes e anexos da Loja."><DocumentosGestaoClient/></AppShell>}
