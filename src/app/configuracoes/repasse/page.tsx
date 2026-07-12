@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{RepasseGestaoClient}from"@/components/RepasseGestaoClient";export default function Page(){return <AppShell secao="Gestão" titulo="Repasse de Gestão" subtitulo="Formalize o encerramento e a transição para a nova diretoria."><RepasseGestaoClient/></AppShell>}
