@@ -7,6 +7,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { podeAcessarModulo, type PerfilSigma } from "@/lib/auth";
 import { modulos } from "@/lib/mock-data";
 import { createClient } from "@/lib/supabase/client";
+import { AccessBoundary } from "@/components/AccessBoundary";
+import { moduloDaRota } from "@/lib/auth";
 
 type AppShellProps = {
   secao: string;
@@ -142,7 +144,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
             {acao ? <div className="shrink-0">{acao}</div> : <div className="hidden shrink-0 items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-900/50 px-3 py-2 text-sm lg:flex"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/15 font-bold text-amber-300">{iniciais(usuario.nome)}</div><div><p className="max-w-48 truncate font-semibold">{usuario.nome}</p><p className="text-[10px] uppercase tracking-wider text-slate-500">{usuario.perfil}</p></div></div>}
           </div>
         </header>
-        {!acessoPermitido ? <section className="mt-6 rounded-3xl border border-red-400/20 bg-red-400/10 p-6" role="alert"><h2 className="text-xl font-bold">Acesso não permitido</h2><p className="mt-2 text-sm text-red-100/80">Seu perfil não possui permissão para acessar este módulo.</p><Link href="/dashboard" className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 font-semibold text-black">Voltar ao Dashboard</Link></section> : children}
+        {!acessoPermitido ? <section className="mt-6 rounded-3xl border border-red-400/20 bg-red-400/10 p-6" role="alert"><h2 className="text-xl font-bold">Acesso não permitido</h2><p className="mt-2 text-sm text-red-100/80">Seu perfil não possui permissão para acessar este módulo. A tentativa foi registrada para auditoria.</p><Link href="/dashboard" className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 font-semibold text-black">Voltar ao Dashboard</Link></section> : <AccessBoundary perfil={usuario.perfil} modulo={moduloDaRota(pathname)}>{children}</AccessBoundary>}
       </main>
     </div>
   </div>;

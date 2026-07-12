@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{DesbloqueiosClient}from"@/components/DesbloqueiosClient";export default function Page(){return <AppShell secao="Segurança" titulo="Desbloqueio Administrativo" subtitulo="Autorize correções excepcionais em registros protegidos, sempre com justificativa."><DesbloqueiosClient/></AppShell>}

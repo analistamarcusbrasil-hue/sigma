@@ -45,6 +45,7 @@ export const acoesPorPerfil:Record<PerfilUsuario,Partial<Record<string,AcaoPermi
  Chanceler:{"/chancelaria":escrita,"/agenda":escrita,"/dashboard":leitura,"/obreiros":leitura},Orador:{"*":leitura},Consulta:{"*":leitura},Obreiro:{"/dashboard":leitura,"/agenda":leitura}
 };
 export function podeExecutar(perfil:PerfilUsuario,modulo:string,acao:AcaoPermissao){const regras=acoesPorPerfil[perfil];return Boolean(regras[modulo]?.includes(acao)||regras["*"]?.includes(acao));}
+export function moduloDaRota(rota:string){const modulos=Object.values(permissoesPorPerfil).flat();return [...new Set(modulos)].sort((a,b)=>b.length-a.length).find(m=>rota===m||rota.startsWith(`${m}/`))??rota;}
 
 export function permissoesPadrao(perfil: PerfilUsuario) {
   return permissoesPorPerfil[perfil];
