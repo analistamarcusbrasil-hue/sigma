@@ -5,7 +5,9 @@ import { permissoesPadrao, type PerfilUsuario, type StatusPerfil } from "@/lib/a
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
-const perfis: PerfilUsuario[] = ["Administrador", "Venerável Mestre", "Secretário", "Tesoureiro", "Chanceler", "Obreiro"];
+const perfis: PerfilUsuario[] = ["Administrador", "Venerável Mestre", "Secretário", "Tesoureiro", "Chanceler", "Orador", "Consulta", "Obreiro"];
+
+async function protegerUltimoAdministrador(id:string, novoPerfil?:PerfilUsuario, novoStatus?:StatusPerfil){const admin=createAdminClient();const{data:alvo}=await admin.from("profiles").select("perfil,status").eq("id",id).single();if(alvo?.perfil!=="Administrador"||alvo.status!=="ativo")return;if((novoPerfil&&novoPerfil!=="Administrador")||(novoStatus&&novoStatus!=="ativo")){const{count}=await admin.from("profiles").select("id",{count:"exact",head:true}).eq("perfil","Administrador").eq("status","ativo");if((count??0)<=1)throw new Error("Não é permitido remover ou inativar o último Administrador SIGMA.");}}
 
 async function administradorAtual() {
   const supabase = await createClient();
@@ -33,6 +35,7 @@ export async function convidarUsuario(input: { nome: string; email: string; perf
 
 export async function atualizarUsuario(input: { id: string; nome: string; perfil: PerfilUsuario; obreiroId?: string | null; permissoes: string[] }) {
   await administradorAtual();
+  await protegerUltimoAdministrador(input.id,input.perfil);
   if (!input.nome.trim() || !perfis.includes(input.perfil)) throw new Error("Dados de usuário inválidos.");
   const { error } = await createAdminClient().from("profiles").update({ nome: input.nome.trim(), perfil: input.perfil, obreiro_id: input.obreiroId || null, permissoes: input.permissoes }).eq("id", input.id);
   if (error) throw new Error(error.message);
@@ -42,6 +45,7 @@ export async function atualizarUsuario(input: { id: string; nome: string; perfil
 export async function alterarStatusUsuario(id: string, status: StatusPerfil) {
   const idAtual = await administradorAtual();
   if (id === idAtual) throw new Error("Não é permitido alterar o próprio acesso.");
+  await protegerUltimoAdministrador(id,undefined,status);
   const { error } = await createAdminClient().from("profiles").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
   revalidatePath("/usuarios");
