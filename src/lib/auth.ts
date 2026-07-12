@@ -24,7 +24,7 @@ export type PerfilSigma = {
 };
 
 export const permissoesPorPerfil: Record<PerfilUsuario, string[]> = {
-  Administrador: ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/backup", "/usuarios", "/comunicados", "/solicitacoes"],
+  Administrador: ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/backup", "/usuarios", "/comunicados", "/solicitacoes", "/loja", "/admin-sigma", "/onboarding"],
   "Venerável Mestre": ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/comunicados", "/solicitacoes"],
   Secretário: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/secretaria", "/prestacao-contas", "/documentos", "/comunicados", "/solicitacoes"],
   Tesoureiro: ["/dashboard", "/obreiros", "/tesouraria", "/prestacao-contas", "/documentos", "/comunicados", "/solicitacoes"],

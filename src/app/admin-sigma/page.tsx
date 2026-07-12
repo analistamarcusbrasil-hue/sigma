@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{AdminSigmaClient}from"@/components/AdminSigmaClient";export default function Page(){return <AppShell secao="SaaS" titulo="Administrador SIGMA" subtitulo="Visão global de Lojas, usuários e onboarding."><AdminSigmaClient/></AppShell>}

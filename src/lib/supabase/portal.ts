@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/client";
+import { lojaAtivaId } from "@/lib/loja-ativa";
 
 export type SolicitacaoPortal={id:string;tipo:string;titulo:string;descricao:string;status:string;resposta:string;criadoEm:string;obreiroId:string;dados:Record<string,unknown>};
 export type ComunicadoPortal={id:string;titulo:string;mensagem:string;tipo:string;prioridade:string;publicoAlvo:string;status:string;publicadoEm:string;expiraEm:string};
 
-async function contexto(){const supabase=createClient();const{data:{user}}=await supabase.auth.getUser();if(!user)throw new Error("Sessão expirada. Entre novamente.");const{data:perfil,error}=await supabase.from("profiles").select("obreiro_id,perfil").eq("id",user.id).single();if(error)throw new Error("Não foi possível carregar seu perfil.");const{data:vinculo}=await supabase.from("loja_usuarios").select("loja_id").eq("usuario_id",user.id).limit(1).single();if(!vinculo)throw new Error("Seu usuário ainda não está vinculado a uma Loja.");return{supabase,user,perfil,lojaId:vinculo.loja_id,obreiroId:perfil.obreiro_id||""};}
+async function contexto(){const supabase=createClient();const{data:{user}}=await supabase.auth.getUser();if(!user)throw new Error("Sessão expirada. Entre novamente.");const preferida=lojaAtivaId();let q=supabase.from("loja_usuarios").select("loja_id,perfil,obreiro_id").eq("usuario_id",user.id).eq("status","ativo");if(preferida)q=q.eq("loja_id",preferida);const{data:vinculo}=await q.limit(1).single();if(!vinculo)throw new Error("Seu usuário ainda não está vinculado a uma Loja.");return{supabase,user,perfil:{perfil:vinculo.perfil,obreiro_id:vinculo.obreiro_id},lojaId:vinculo.loja_id,obreiroId:vinculo.obreiro_id||""};}
 
 export async function carregarPortal(){const c=await contexto();if(!c.obreiroId)return{...c,obreiro:null,presencas:[],mensalidades:[],recebimentos:[],agenda:[],documentos:[],comunicados:[],solicitacoes:[]};const[o,p,m,r,a,d,co,s]=await Promise.all([
  c.supabase.from("obreiros").select("*").eq("id",c.obreiroId).maybeSingle(),

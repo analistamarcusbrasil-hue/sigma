@@ -24,4 +24,6 @@
 - [ ] Confirmar que um Obreiro não consulta frequência, mensalidade ou documento individual de outro.
 - [ ] Testar comunicado publicado e solicitação respondida.
 - [ ] Registrar commit, data, responsável e versão publicada.
+- [ ] Testar usuário com duas Lojas, troca da Loja ativa e isolamento dos dados.
+- [ ] Confirmar perfil e vínculo de Obreiro específicos em cada Loja.
 

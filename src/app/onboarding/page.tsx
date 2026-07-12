@@ -1,0 +1,1 @@
+import{AppShell}from"@/components/AppShell";import{OnboardingClient}from"@/components/OnboardingClient";export default function Page(){return <AppShell secao="SaaS" titulo="Onboarding de nova Loja" subtitulo="Configure uma Loja isolada e prepare sua entrada no SIGMA."><OnboardingClient/></AppShell>}

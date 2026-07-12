@@ -24,6 +24,7 @@ Homologado em 12/07/2026 no projeto `rvkkwspikkgjgruosdwh`.
 | 20260725 | Permissões por ação | RLS financeira e desbloqueios justificados |
 | 20260726 | Alinhamento da homologação | RLS por ação em documentos e patrimônio |
 | 20260727 | Portal e comunicação | solicitações, comunicados, visibilidade e RLS individual |
+| 20260728 | Multi-Loja SaaS | cadastro institucional, perfil por Loja e funções de isolamento |
 
 As migrations 10–26 constam no histórico remoto. A migration 27 é aditiva, não remove dados e deve ser aplicada junto à publicação do Portal do Obreiro.
 

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/client";
+import { lojaAtivaId } from "@/lib/loja-ativa";
 import type { Obreiro, RegistroPresenca, Sessao } from "@/types";
 
 type Loja = { id: string; nome: string };
@@ -63,11 +64,13 @@ function mensagem(error: { message: string } | null, fallback: string) {
 
 export async function obterLojaAtual(): Promise<Loja> {
   const supabase = createClient();
-  const { data, error } = await supabase
+  const preferida=lojaAtivaId();
+  let consulta=supabase
     .from("loja_usuarios")
     .select("loja_id, lojas(id, nome)")
-    .limit(1)
-    .maybeSingle();
+    .eq("status","ativo");
+  if(preferida)consulta=consulta.eq("loja_id",preferida);
+  const { data, error } = await consulta.limit(1).maybeSingle();
   if (error) throw new Error(error.message);
   const loja = data?.lojas as unknown as Loja | null;
   if (!loja) throw new Error("Seu usuário ainda não está vinculado a uma Loja.");

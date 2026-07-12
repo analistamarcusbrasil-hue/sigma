@@ -14,6 +14,8 @@ export const modulos = [
   { nome: "Meu Portal", href: "/portal-obreiro", descricao: "Autoatendimento, frequência, mensalidades e solicitações." },
   { nome: "Comunicados", href: "/comunicados", descricao: "Avisos internos destinados aos perfis da Loja." },
   { nome: "Solicitações", href: "/solicitacoes", descricao: "Pedidos cadastrais, financeiros e justificativas." },
+  { nome: "Cadastro da Loja", href: "/loja", descricao: "Identidade institucional e configurações da Loja ativa." },
+  { nome: "Administrador SIGMA", href: "/admin-sigma", descricao: "Visão SaaS global e onboarding de Lojas." },
   {
     nome: "Obreiros",
     href: "/obreiros",
