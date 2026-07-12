@@ -1,3 +1,96 @@
-﻿"use client";import{useEffect,useState}from"react";import{Feedback,LoadingState}from"@/components/ui/Feedback";import{listarGestoes,listarObreiros,listarPrestacoesFinais,listarRepasses,salvarRepasse,type GestaoOperacional,type PrestacaoFinal,type RepasseGestao}from"@/lib/supabase/operacional";const moeda=(v:number)=>v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});const campo="w-full rounded-xl border border-white/10 bg-black/25 p-3";export function RepasseGestaoClient(){const[g,setG]=useState<GestaoOperacional>(),[p,setP]=useState<PrestacaoFinal>(),[r,setR]=useState<RepasseGestao>(),[ob,setOb]=useState<{id:string;nome:string}[]>([]),[load,setLoad]=useState(true),[erro,setErro]=useState("");useEffect(()=>{Promise.all([listarGestoes(),listarPrestacoesFinais(),listarRepasses(),listarObreiros()]).then(([gs,ps,rs,os])=>{const a=gs.find(x=>x.status==="Atual"||x.ativa);setG(a);const pf=ps.find(x=>x.gestaoId===a?.id);setP(pf);setR(rs.find(x=>x.gestaoOrigemId===a?.id)??{id:"",gestaoOrigemId:a?.id??"",prestacaoFinalId:pf?.id??"",status:"Em elaboraÃ§Ã£o",dataRepasse:"",caixa:pf?.caixaFisicoFinal??0,banco:pf?.contaBancariaFinal??0,creditos:pf?.creditosReceber??0,obrigacoes:pf?.obrigacoesPagar??0,saldoLiquido:pf?.saldoLiquidoRepasse??0,pendenciasFinanceiras:"",pendenciasAdministrativas:pf?.pendenciasAdministrativas??"",documentosPendentes:pf?.observacoesComprovantes??"",observacoes:"",justificativa:"",responsavelRepasseId:"",responsavelRecebimentoId:"",finalizadoEm:""});setOb(os);}).catch(e=>setErro(e.message)).finally(()=>setLoad(false));},[]);if(load)return <LoadingState/>;if(!g||!r)return <Feedback tone="warning">NÃ£o hÃ¡ gestÃ£o ativa para repasse.</Feedback>;const saldo=r.caixa+r.banco+r.creditos-r.obrigacoes,div=Math.abs(saldo-(p?.saldoLiquidoRepasse??saldo))>.01,lock=r.status==="Finalizado";async function salvar(status:string){if(!r)return;if(status==="Finalizado"&&(!r?.dataRepasse||!r.responsavelRepasseId))return setErro("Informe data e responsÃ¡vel pelo repasse.");if(div&&!r?.justificativa)return setErro("Justifique a divergÃªncia de valores.");try{setR(await salvarRepasse({...r,status,saldoLiquido:saldo}));}catch(e){setErro(e instanceof Error?e.message:"Erro ao salvar");}}return <div className="mt-8 space-y-6">{erro&&<Feedback tone="error">{erro}</Feedback>}{p?.status!=="Aprovada"&&<Feedback tone="warning">A PrestaÃ§Ã£o Final ainda nÃ£o foi aprovada.</Feedback>}<section className="sigma-surface rounded-3xl p-6"><h2 className="text-2xl font-black">{g.nomeGestao}</h2><p className="text-zinc-400">{g.dataInicioGestao} a {g.dataFimGestao} Â· {r.status}</p><div className="mt-5 grid gap-4 sm:grid-cols-3">{[["Caixa",r.caixa],["Banco",r.banco],["Saldo lÃ­quido",saldo]].map(([t,v])=><div key={String(t)} className="rounded-2xl border border-white/10 p-4"><p>{t}</p><b className="text-xl text-amber-200">{moeda(Number(v))}</b></div>)}</div></section><section className="sigma-surface grid gap-4 rounded-3xl p-6 sm:grid-cols-2">{([['caixa','Caixa fÃ­sico'],['banco','Conta bancÃ¡ria'],['creditos','CrÃ©ditos'],['obrigacoes','ObrigaÃ§Ãµes']] as const).map(([k,l])=><label key={k}>{l}<input disabled={lock} type="number" min="0" value={r[k]} onChange={e=>setR({...r,[k]:Number(e.target.value)})} className={campo}/></label>)}<label>Data<input disabled={lock} type="date" value={r.dataRepasse} onChange={e=>setR({...r,dataRepasse:e.target.value})} className={campo}/></label><label>ResponsÃ¡vel<select disabled={lock} value={r.responsavelRepasseId} onChange={e=>setR({...r,responsavelRepasseId:e.target.value})} className={campo}><option value="">Selecione</option>{ob.map(o=><option key={o.id} value={o.id}>{o.nome}</option>)}</select></label><textarea disabled={lock} placeholder="PendÃªncias financeiras" value={r.pendenciasFinanceiras} onChange={e=>setR({...r,pendenciasFinanceiras:e.target.value})} className={campo}/><textarea disabled={lock} placeholder="PendÃªncias administrativas" value={r.pendenciasAdministrativas} onChange={e=>setR({...r,pendenciasAdministrativas:e.target.value})} className={campo}/>{div&&<textarea placeholder="Justificativa da divergÃªncia" value={r.justificativa} onChange={e=>setR({...r,justificativa:e.target.value})} className={campo}/>}<div className="sm:col-span-2 flex justify-end gap-2"><button disabled={lock} onClick={()=>void salvar("Em elaboraÃ§Ã£o")} className="rounded-xl border p-3">Salvar</button><button disabled={lock} onClick={()=>void salvar("Finalizado")} className="rounded-xl bg-amber-400 p-3 font-bold text-black">Finalizar repasse</button></div></section></div>}
+"use client";
 
+import { useEffect, useState } from "react";
+import { Feedback, LoadingState } from "@/components/ui/Feedback";
+import { FormField } from "@/components/ui/FormField";
+import { listarGestoes, listarObreiros, listarPrestacoesFinais, listarRepasses, salvarRepasse, type GestaoOperacional, type PrestacaoFinal, type RepasseGestao } from "@/lib/supabase/operacional";
 
+const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
+const campo = "w-full rounded-xl border border-white/10 bg-black/25 p-3";
+
+export function RepasseGestaoClient() {
+  const [gestao, setGestao] = useState<GestaoOperacional>();
+  const [prestacao, setPrestacao] = useState<PrestacaoFinal>();
+  const [repasse, setRepasse] = useState<RepasseGestao>();
+  const [obreiros, setObreiros] = useState<{ id: string; nome: string }[]>([]);
+  const [carregando, setCarregando] = useState(true);
+  const [salvando, setSalvando] = useState(false);
+  const [erro, setErro] = useState("");
+  const [sucesso, setSucesso] = useState("");
+
+  useEffect(() => {
+    Promise.all([listarGestoes(), listarPrestacoesFinais(), listarRepasses(), listarObreiros()])
+      .then(([gestoes, prestacoes, repasses, listaObreiros]) => {
+        const atual = gestoes.find((item) => item.status === "Atual" || item.ativa);
+        const final = prestacoes.find((item) => item.gestaoId === atual?.id);
+        setGestao(atual);
+        setPrestacao(final);
+        setRepasse(repasses.find((item) => item.gestaoOrigemId === atual?.id) ?? {
+          id: "", gestaoOrigemId: atual?.id ?? "", prestacaoFinalId: final?.id ?? "", status: "Em elaboração", dataRepasse: "",
+          caixa: final?.caixaFisicoFinal ?? 0, banco: final?.contaBancariaFinal ?? 0, creditos: final?.creditosReceber ?? 0,
+          obrigacoes: final?.obrigacoesPagar ?? 0, saldoLiquido: final?.saldoLiquidoRepasse ?? 0, pendenciasFinanceiras: "",
+          pendenciasAdministrativas: final?.pendenciasAdministrativas ?? "", documentosPendentes: final?.observacoesComprovantes ?? "",
+          observacoes: "", justificativa: "", responsavelRepasseId: "", responsavelRecebimentoId: "", finalizadoEm: "",
+        });
+        setObreiros(listaObreiros);
+      })
+      .catch((causa: unknown) => setErro(causa instanceof Error ? causa.message : "Não foi possível carregar o repasse."))
+      .finally(() => setCarregando(false));
+  }, []);
+
+  if (carregando) return <LoadingState />;
+  if (!gestao || !repasse) return <Feedback tone="warning">Não há gestão ativa para repasse.</Feedback>;
+
+  const saldo = repasse.caixa + repasse.banco + repasse.creditos - repasse.obrigacoes;
+  const divergente = Math.abs(saldo - (prestacao?.saldoLiquidoRepasse ?? saldo)) > 0.01;
+  const protegido = repasse.status === "Finalizado";
+  const responsavel = obreiros.find((item) => item.id === repasse.responsavelRepasseId)?.nome ?? "Não informado";
+
+  async function salvar(status: string) {
+    if (!repasse) return;
+    setErro(""); setSucesso("");
+    if (status === "Finalizado" && (!repasse.dataRepasse || !repasse.responsavelRepasseId)) return setErro("Informe data e responsável pelo repasse.");
+    if (divergente && !repasse.justificativa.trim()) return setErro("Justifique a divergência de valores.");
+    setSalvando(true);
+    try {
+      setRepasse(await salvarRepasse({ ...repasse, status, saldoLiquido: saldo }));
+      setSucesso(status === "Finalizado" ? "Repasse finalizado e gestão encerrada com sucesso." : "Repasse salvo com sucesso.");
+    } catch (causa: unknown) { setErro(causa instanceof Error ? causa.message : "Erro ao salvar o repasse."); }
+    finally { setSalvando(false); }
+  }
+
+  async function gerarTermo() {
+    if (!gestao || !repasse) return;
+    const { jsPDF } = await import("jspdf");
+    const documento = new jsPDF();
+    const linhas = [
+      "SIGMA 2.0 - Termo de Repasse de Gestão", `Gestão de origem: ${gestao.nomeGestao}`,
+      `Período: ${gestao.dataInicioGestao} a ${gestao.dataFimGestao}`, `Status: ${repasse.status}`,
+      `Data do repasse: ${repasse.dataRepasse || "Não informada"}`, `Responsável pelo repasse: ${responsavel}`,
+      `Caixa físico: ${moeda(repasse.caixa)}`, `Conta bancária: ${moeda(repasse.banco)}`, `Créditos: ${moeda(repasse.creditos)}`,
+      `Obrigações: ${moeda(repasse.obrigacoes)}`, `Saldo líquido: ${moeda(saldo)}`,
+      `Pendências financeiras: ${repasse.pendenciasFinanceiras || "Nenhuma informada"}`,
+      `Pendências administrativas: ${repasse.pendenciasAdministrativas || "Nenhuma informada"}`,
+      `Documentos pendentes: ${repasse.documentosPendentes || "Nenhum informado"}`,
+    ];
+    documento.setFontSize(16); documento.text(linhas[0], 14, 18); documento.setFontSize(10);
+    linhas.slice(1).forEach((linha, indice) => documento.text(linha.slice(0, 110), 14, 32 + indice * 9));
+    documento.setFontSize(8); documento.text("Sistema desenvolvido por Marcus Brasil | Contato: analista.marcusbrasil@gmail.com", 14, 290);
+    documento.save(`termo-repasse-${gestao.nomeGestao.replaceAll(" ", "-")}.pdf`);
+  }
+
+  return <div className="mt-8 space-y-6">
+    {erro && <Feedback tone="error">{erro}</Feedback>}{sucesso && <Feedback tone="success">{sucesso}</Feedback>}
+    {prestacao?.status !== "Aprovada" && <Feedback tone="warning">A Prestação Final ainda não foi aprovada.</Feedback>}
+    <section className="sigma-surface rounded-3xl p-6"><h2 className="text-2xl font-black">{gestao.nomeGestao}</h2><p className="text-zinc-400">{gestao.dataInicioGestao} a {gestao.dataFimGestao} · {repasse.status}</p><div className="mt-5 grid gap-4 sm:grid-cols-3">{[["Caixa", repasse.caixa], ["Banco", repasse.banco], ["Saldo líquido", saldo]].map(([titulo, valor]) => <div key={String(titulo)} className="rounded-2xl border border-white/10 p-4"><p>{titulo}</p><b className="text-xl text-amber-200">{moeda(Number(valor))}</b></div>)}</div></section>
+    <section className="sigma-surface grid gap-4 rounded-3xl p-6 sm:grid-cols-2">
+      {([['caixa', 'Caixa físico'], ['banco', 'Conta bancária'], ['creditos', 'Créditos'], ['obrigacoes', 'Obrigações']] as const).map(([chave, label]) => <FormField key={chave} id={`repasse-${chave}`} label={label}><input id={`repasse-${chave}`} disabled={protegido} type="number" min="0" value={repasse[chave]} onChange={(evento) => setRepasse({ ...repasse, [chave]: Number(evento.target.value) })} className={campo} /></FormField>)}
+      <FormField id="repasse-data" label="Data do repasse" required><input id="repasse-data" disabled={protegido} type="date" value={repasse.dataRepasse} onChange={(evento) => setRepasse({ ...repasse, dataRepasse: evento.target.value })} className={campo} /></FormField>
+      <FormField id="repasse-responsavel" label="Responsável pelo repasse" required><select id="repasse-responsavel" disabled={protegido} value={repasse.responsavelRepasseId} onChange={(evento) => setRepasse({ ...repasse, responsavelRepasseId: evento.target.value })} className={campo}><option value="">Selecione</option>{obreiros.map((obreiro) => <option key={obreiro.id} value={obreiro.id}>{obreiro.nome}</option>)}</select></FormField>
+      <FormField id="repasse-pend-fin" label="Pendências financeiras"><textarea id="repasse-pend-fin" disabled={protegido} value={repasse.pendenciasFinanceiras} onChange={(evento) => setRepasse({ ...repasse, pendenciasFinanceiras: evento.target.value })} className={campo} /></FormField>
+      <FormField id="repasse-pend-adm" label="Pendências administrativas"><textarea id="repasse-pend-adm" disabled={protegido} value={repasse.pendenciasAdministrativas} onChange={(evento) => setRepasse({ ...repasse, pendenciasAdministrativas: evento.target.value })} className={campo} /></FormField>
+      {divergente && <FormField id="repasse-justificativa" label="Justificativa da divergência" required><textarea id="repasse-justificativa" disabled={protegido} value={repasse.justificativa} onChange={(evento) => setRepasse({ ...repasse, justificativa: evento.target.value })} className={campo} /></FormField>}
+      <div className="flex flex-wrap justify-end gap-2 sm:col-span-2"><button type="button" onClick={() => void gerarTermo()} className="rounded-xl border border-amber-300/30 p-3 font-bold text-amber-200">Gerar Termo de Repasse</button><button type="button" disabled={protegido || salvando} onClick={() => void salvar("Em elaboração")} className="rounded-xl border p-3">{salvando ? "Salvando…" : "Salvar"}</button><button type="button" disabled={protegido || salvando || prestacao?.status !== "Aprovada"} onClick={() => void salvar("Finalizado")} className="rounded-xl bg-amber-400 p-3 font-bold text-black disabled:opacity-50">Finalizar repasse</button></div>
+    </section>
+  </div>;
+}

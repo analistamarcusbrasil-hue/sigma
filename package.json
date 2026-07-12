@@ -6,8 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
-    ,"test:permissions": "node --experimental-strip-types scripts/test-permissions.mjs"
+    "lint": "eslint",
+    "test:permissions": "node --experimental-strip-types scripts/test-permissions.mjs",
+    "test:homologacao": "node scripts/test-homologacao.mjs",
+    "test": "npm run test:permissions && npm run test:homologacao"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",
