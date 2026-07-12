@@ -1,6 +1,7 @@
 import { AppShell } from "@/components/AppShell";
 import { DashboardClient } from "@/components/DashboardClient";
 import { FechamentosResumoClient } from "@/components/FechamentosResumoClient";
+import { PrestacaoFinalResumoClient } from "@/components/PrestacaoFinalResumoClient";
 
 export default function DashboardPage() {
   return (
@@ -11,6 +12,7 @@ export default function DashboardPage() {
     >
       <DashboardClient />
       <FechamentosResumoClient />
+      <PrestacaoFinalResumoClient />
     </AppShell>
   );
 }
