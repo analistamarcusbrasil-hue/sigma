@@ -5,6 +5,7 @@ import Link from "next/link";
 import { EmptyState, Feedback, LoadingState } from "@/components/ui/Feedback";
 import { FormField } from "@/components/ui/FormField";
 import { StatusBadge } from "@/components/ui/StatusBadge";
+import { saldoInicialLiquido } from "@/lib/financeiro";
 import {
   carregarCadastrosFinanceiros, excluirLancamentoLivroCaixa, listarGestoes, listarLivroCaixa,
   salvarLancamentoLivroCaixa, type CadastrosFinanceiros, type GestaoOperacional,
@@ -41,7 +42,7 @@ export function LivroCaixaClient() {
   const categoriasDoTipo = useMemo(() => cadastros.categorias.filter(c => c.ativa && (c.natureza === "Ambos" || c.natureza === (form.natureza === "Entrada" ? "Receita" : "Despesa"))), [cadastros.categorias, form.natureza]);
   const filtrados = useMemo(() => lancamentos.filter(l => (!mes || l.data.startsWith(mes)) && (!tipo || l.natureza===tipo) && (!categoria || l.categoriaId===categoria) && (!conta || l.contaId===conta) && (!centro || l.centroCustoId===centro) && (!status || l.status===status)), [lancamentos,mes,tipo,categoria,conta,centro,status]);
   const oficiaisGestao = useMemo(() => lancamentos.filter(l => oficiais.includes(l.status) && (!gestaoAtual || l.gestaoId === gestaoAtual.id)), [lancamentos,gestaoAtual]);
-  const saldoInicial = gestaoAtual ? gestaoAtual.financeiroPositivoRecebido - gestaoAtual.financeiroNegativoRecebido : 0;
+  const saldoInicial = gestaoAtual ? saldoInicialLiquido(gestaoAtual.financeiroPositivoRecebido, gestaoAtual.financeiroNegativoRecebido) : 0;
   const entradasMes = oficiaisGestao.filter(l=>l.natureza==="Entrada"&&l.data.startsWith(mes)).reduce((s,l)=>s+l.valor,0);
   const saidasMes = oficiaisGestao.filter(l=>l.natureza==="Saída"&&l.data.startsWith(mes)).reduce((s,l)=>s+l.valor,0);
   const movimentoTotal = oficiaisGestao.reduce((s,l)=>s+(l.natureza==="Entrada"?l.valor:-l.valor),0);

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Feedback, LoadingState } from "@/components/ui/Feedback";
 import { FormField } from "@/components/ui/FormField";
+import { repasseDivergente, saldoRepasse } from "@/lib/financeiro";
 import { listarGestoes, listarObreiros, listarPrestacoesFinais, listarRepasses, salvarRepasse, type GestaoOperacional, type PrestacaoFinal, type RepasseGestao } from "@/lib/supabase/operacional";
 
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -41,8 +42,8 @@ export function RepasseGestaoClient() {
   if (carregando) return <LoadingState />;
   if (!gestao || !repasse) return <Feedback tone="warning">Não há gestão ativa para repasse.</Feedback>;
 
-  const saldo = repasse.caixa + repasse.banco + repasse.creditos - repasse.obrigacoes;
-  const divergente = Math.abs(saldo - (prestacao?.saldoLiquidoRepasse ?? saldo)) > 0.01;
+  const saldo = saldoRepasse(repasse.caixa, repasse.banco, repasse.creditos, repasse.obrigacoes);
+  const divergente = repasseDivergente(saldo, prestacao?.saldoLiquidoRepasse ?? saldo);
   const protegido = repasse.status === "Finalizado";
   const responsavel = obreiros.find((item) => item.id === repasse.responsavelRepasseId)?.nome ?? "Não informado";
 
