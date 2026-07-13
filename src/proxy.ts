@@ -12,10 +12,7 @@ export async function proxy(request: NextRequest) {
       cookies: {
         getAll() { return request.cookies.getAll(); },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => {
-            void options;
-            request.cookies.set(name, value);
-          });
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = NextResponse.next({ request });
           cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
         },
@@ -23,18 +20,30 @@ export async function proxy(request: NextRequest) {
     }
   );
 
+  const caminho = request.nextUrl.pathname;
   const { data: { user } } = await supabase.auth.getUser();
-  const publica = rotasPublicas.some((rota) => request.nextUrl.pathname.startsWith(rota));
-
+  const publica = rotasPublicas.some((rota) => caminho.startsWith(rota));
   if (!user && !publica) return NextResponse.redirect(new URL("/login", request.url));
-  if (user && request.nextUrl.pathname === "/login") return NextResponse.redirect(new URL("/dashboard", request.url));
+  if (!user) return response;
 
-  if (user && !publica) {
-    const { data: profile } = await supabase.from("profiles").select("status").eq("id", user.id).maybeSingle();
-  if (!profile || profile.status !== "ativo") {
+  if (!publica || caminho === "/login") {
+    const [{ data: profile }, { data: vinculos }] = await Promise.all([
+      supabase.from("profiles").select("status,perfil").eq("id", user.id).maybeSingle(),
+      supabase.from("loja_usuarios").select("perfil,obreiro_id,acesso_portal_obreiro,deve_trocar_senha")
+        .eq("usuario_id", user.id).eq("status", "ativo"),
+    ]);
+    if (!profile || profile.status !== "ativo") {
       await supabase.auth.signOut();
       return NextResponse.redirect(new URL("/login?erro=acesso_indisponivel", request.url));
     }
+    const deveTrocar = Boolean(vinculos?.some((v) => v.deve_trocar_senha));
+    if (deveTrocar && caminho !== "/alterar-senha") {
+      return NextResponse.redirect(new URL("/alterar-senha", request.url));
+    }
+    const portalDisponivel = Boolean(vinculos?.some((v) => v.acesso_portal_obreiro && v.obreiro_id));
+    const destino = profile.perfil === "Obreiro" && portalDisponivel ? "/portal-obreiro" : "/dashboard";
+    if (!deveTrocar && caminho === "/alterar-senha") return NextResponse.redirect(new URL(destino, request.url));
+    if (caminho === "/login") return NextResponse.redirect(new URL(destino, request.url));
   }
 
   return response;
