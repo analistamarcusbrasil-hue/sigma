@@ -23,4 +23,5 @@ for (const regra of ["documentos: cria por acao", "documentos: edita por acao", 
 const portalRls=readFileSync(join(raiz,"supabase/migrations/20260727_worker_portal_communication.sql"),"utf8");
 for(const regra of ["obreiro_id=public.obreiro_atual()","mensalidades: acesso por perfil","presencas: acesso por perfil","documentos: acesso por visibilidade","solicitacoes: proprio obreiro cria"])assert.ok(portalRls.includes(regra),`Proteção do Portal ausente: ${regra}`);
 const multi=readFileSync(join(raiz,"supabase/migrations/20260728_multistore_saas_onboarding.sql"),"utf8");for(const regra of ["usuario_tem_acesso_loja","usuario_perfil_na_loja","usuario_obreiro_na_loja","loja_usuarios_contexto_idx"])assert.ok(multi.includes(regra),`Isolamento multi-Loja ausente: ${regra}`);
+const usuariosActions=readFileSync(join(raiz,"src/app/usuarios/actions.ts"),"utf8");for(const regra of ["loja_usuarios","obreiro_id:input.obreiroId","Não é permitido alterar o próprio vínculo"])assert.ok(usuariosActions.includes(regra),`Vínculo Usuário–Obreiro ausente: ${regra}`);
 console.log(`${rotas.length} rotas, ${migrations.length} migrations e 3 exportações homologadas.`);
