@@ -31,7 +31,7 @@ export const permissoesPorPerfil: Record<PerfilUsuario, string[]> = {
   Chanceler: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/comunicados", "/solicitacoes"],
   Orador: ["/dashboard", "/agenda", "/secretaria", "/documentos", "/prestacao-contas"],
   Consulta: ["/dashboard", "/agenda", "/prestacao-contas", "/documentos"],
-  Obreiro: ["/dashboard", "/agenda", "/portal-obreiro"],
+  Obreiro: ["/portal-obreiro"],
 };
 
 export type AcaoPermissao="visualizar"|"criar"|"editar"|"excluir"|"aprovar"|"cancelar"|"reabrir"|"exportar"|"gerar_pdf"|"alterar_protegido"|"desbloquear"|"ver_auditoria";
@@ -42,7 +42,7 @@ export const acoesPorPerfil:Record<PerfilUsuario,Partial<Record<string,AcaoPermi
  "Venerável Mestre":{"*":[...leitura,"aprovar"],"/configuracoes":[...escrita,"aprovar"],"/prestacao-contas":[...escrita,"aprovar","reabrir"],"/comunicados":escrita,"/solicitacoes":escrita},
  Tesoureiro:{"/tesouraria":[...escrita,"cancelar"],"/prestacao-contas":[...escrita,"aprovar"],"/documentos":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},
  Secretário:{"/secretaria":escrita,"/documentos":escrita,"/agenda":escrita,"/chancelaria":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/prestacao-contas":leitura,"/dashboard":leitura,"/obreiros":leitura},
- Chanceler:{"/chancelaria":escrita,"/agenda":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},Orador:{"*":leitura},Consulta:{"*":leitura},Obreiro:{"/dashboard":leitura,"/agenda":leitura,"/portal-obreiro":[...leitura,"criar"]}
+ Chanceler:{"/chancelaria":escrita,"/agenda":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},Orador:{"*":leitura},Consulta:{"*":leitura},Obreiro:{"/portal-obreiro":[...leitura,"criar"]}
 };
 export function podeExecutar(perfil:PerfilUsuario,modulo:string,acao:AcaoPermissao){const regras=acoesPorPerfil[perfil];return Boolean(regras[modulo]?.includes(acao)||regras["*"]?.includes(acao));}
 export function moduloDaRota(rota:string){const modulos=Object.values(permissoesPorPerfil).flat();return [...new Set(modulos)].sort((a,b)=>b.length-a.length).find(m=>rota===m||rota.startsWith(`${m}/`))??rota;}

@@ -18,8 +18,9 @@ const cenarios = [
   ["Orador", "/documentos", "editar", false],
   ["Consulta", "/prestacao-contas", "visualizar", true],
   ["Consulta", "/prestacao-contas", "aprovar", false],
-  ["Obreiro", "/dashboard", "visualizar", true],
-  ["Obreiro", "/dashboard", "editar", false],
+  ["Obreiro", "/portal-obreiro", "visualizar", true],
+  ["Obreiro", "/portal-obreiro", "criar", true],
+  ["Obreiro", "/dashboard", "visualizar", false],
 ];
 
 for (const [perfil, modulo, acao, esperado] of cenarios) {
@@ -29,6 +30,8 @@ for (const [perfil, modulo, acao, esperado] of cenarios) {
 assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/tesouraria/livro-caixa"), true);
 assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/secretaria"), false);
 assert.equal(podeAcessarModulo(permissoesPadrao("Consulta"), "/usuarios"), false);
+assert.deepEqual(permissoesPadrao("Obreiro"), ["/portal-obreiro"]);
+assert.equal(podeAcessarModulo(permissoesPadrao("Obreiro"), "/dashboard"), false);
 assert.equal(moduloDaRota("/tesouraria/fechamento-mensal"), "/tesouraria");
 assert.equal(moduloDaRota("/usuarios/desbloqueios"), "/usuarios");
 
