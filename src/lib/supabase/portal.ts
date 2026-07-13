@@ -37,6 +37,7 @@ export type SessaoSolicitacao = {
 
 export type SolicitacaoPortal = {
   id: string;
+  lojaId: string;
   protocolo: string;
   tipo: string;
   titulo: string;
@@ -168,6 +169,7 @@ function mapearSolicitacao(i: Record<string, unknown>): SolicitacaoPortal {
   const primeiraSessao = sessoes[0];
   return {
     id: String(i.id ?? ""),
+    lojaId: String(i.loja_id ?? ""),
     protocolo: String(i.protocolo ?? ""),
     tipo: String(i.tipo ?? ""),
     titulo: String(i.titulo ?? ""),
