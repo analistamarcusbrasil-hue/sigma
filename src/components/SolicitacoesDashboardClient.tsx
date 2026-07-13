@@ -28,7 +28,9 @@ export function SolicitacoesDashboardClient() {
       total: abertas.filter((i) => i.areaDestino === area).length,
       atrasadas: atrasadas.filter((i) => i.areaDestino === area).length,
     })).sort((a, b) => b.total - a.total);
-    return { abertas, atrasadas, proximas, areas };
+    const veneravel = abertas.filter((i) => i.status === "Aguardando aprovação do Venerável");
+    const complemento = abertas.filter((i) => i.status === "Aguardando complementação");
+    return { abertas, atrasadas, proximas, areas, veneravel, complemento };
   }, [itens]);
 
   if (indisponivel) return null;
@@ -38,17 +40,18 @@ export function SolicitacoesDashboardClient() {
       <div>
         <p className="text-xs font-bold uppercase tracking-[.2em] text-amber-300">Portal e Comunicação</p>
         <h2 className="mt-1 text-2xl font-black">Tramitação das solicitações</h2>
-        <p className="mt-1 text-sm text-zinc-400">Pendências distribuídas ao seu perfil, com prazo e acompanhamento.</p>
+        <p className="mt-1 text-sm text-zinc-400">Parecer técnico, complementações, decisão final do Venerável e entrega ao Obreiro.</p>
       </div>
       <Link href="/solicitacoes" className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-bold text-black">Abrir central de solicitações</Link>
     </div>
 
     {carregando ? <p className="mt-5 text-sm text-zinc-400">Carregando prazos…</p> : <>
-      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Em andamento", dados.abertas.length, "text-sky-200"],
-          ["Pendentes", dados.abertas.filter((i) => i.status === "Pendente").length, "text-amber-200"],
-          ["Vencem hoje/amanhã", dados.proximas.length, "text-orange-200"],
+          ["Análise técnica", dados.abertas.filter((i) => ["Pendente", "Em análise"].includes(i.status)).length, "text-amber-200"],
+          ["Decisão do Venerável", dados.veneravel.length, "text-violet-200"],
+          ["Aguardando Obreiro", dados.complemento.length, "text-orange-200"],
           ["Em atraso", dados.atrasadas.length, "text-red-300"],
         ].map(([titulo, valor, cor]) => <article key={String(titulo)} className="rounded-2xl border border-white/10 bg-black/15 p-4"><p className="text-sm text-zinc-400">{titulo}</p><p className={`mt-1 text-3xl font-black ${cor}`}>{valor}</p></article>)}
       </div>
