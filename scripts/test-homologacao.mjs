@@ -29,4 +29,8 @@ const proxy=readFileSync(join(raiz,"src/proxy.ts"),"utf8");for(const regra of ["
 const usuariosActions=readFileSync(join(raiz,"src/app/usuarios/actions.ts"),"utf8");for(const regra of ["loja_usuarios","obreiro_id: input.obreiroId","Não é permitido alterar o próprio vínculo","criarUsuarioComSenhaTemporaria","definirSenhaTemporaria","updateUserById","senha.length < 6"])assert.ok(usuariosActions.includes(regra),`Vínculo Usuário–Obreiro ausente: ${regra}`);
 const usuariosClient=readFileSync(join(raiz,"src/components/UsuariosClient.tsx"),"utf8");
 for(const regra of ['modo: "senha"','obrigarTroca: false','Pode ser qualquer senha com pelo menos 6 caracteres','Exigir troca no próximo login (opcional)'])assert.ok(usuariosClient.includes(regra),`Interface de senha administrativa ausente: ${regra}`);
+const portalAction=readFileSync(join(raiz,"src/app/portal-obreiro/actions.ts"),"utf8");
+for(const regra of ["enviarSolicitacaoPortal","acesso_portal_obreiro","obreiro_id","solicitacoes_obreiro","criar_solicitacao"])assert.ok(portalAction.includes(regra),`Ação segura do Portal ausente: ${regra}`);
+const portalClient=readFileSync(join(raiz,"src/components/PortalObreiroClient.tsx"),"utf8");
+for(const regra of ["<form onSubmit","type=\"submit\"","minLength={10}","Enviando com segurança","Nenhuma solicitação enviada"])assert.ok(portalClient.includes(regra),`Formulário do Portal ausente: ${regra}`);
 console.log(`${rotas.length} rotas, ${migrations.length} migrations e 3 exportações homologadas.`);

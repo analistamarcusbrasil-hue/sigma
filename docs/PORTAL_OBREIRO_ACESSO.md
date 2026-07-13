@@ -40,3 +40,16 @@ O Portal mantém os dados já isolados por RLS:
 - **Loja errada:** selecionar a Loja que contém o vínculo válido.
 
 Toda concessão, remoção e tentativa bloqueada deve ser verificável na auditoria.
+
+
+## Envio de solicitações
+
+O botão **Enviar para análise** usa uma ação autenticada no servidor. Antes da gravação, o SIGMA valida novamente a sessão, a Loja ativa, o vínculo com o Obreiro e a liberação do Portal.
+
+- assunto entre 3 e 120 caracteres;
+- descrição entre 10 e 2.000 caracteres;
+- bloqueio de envio duplicado enquanto a operação está em andamento;
+- retorno claro de sucesso ou erro;
+- nova solicitação exibida imediatamente com status Pendente;
+- auditoria automática pelo banco e evento de segurança;
+- nenhum dado é perdido se a atualização visual falhar após a gravação.
