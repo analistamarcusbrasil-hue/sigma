@@ -41,6 +41,7 @@ const iconesModulo: Record<string, string> = {
   "/auditoria": "◎",
   "/backup": "↻",
   "/usuarios": "♚",
+  "/portal-obreiro": "♙",
 };
 
 export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellProps) {
@@ -50,7 +51,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
   const [carregando, setCarregando] = useState(true);
   const [saindo, setSaindo] = useState(false);
   const [menuAberto, setMenuAberto] = useState(false);
-  const [lojas,setLojas]=useState<{id:string;nome:string;perfil:string}[]>([]);const[lojaId,setLojaId]=useState("");
+  const [lojas,setLojas]=useState<{id:string;nome:string;perfil:string;obreiroId:string;acessoPortal:boolean;deveTrocarSenha:boolean}[]>([]);const[lojaId,setLojaId]=useState("");
   const acessoRegistrado = useRef("");
 
   useEffect(() => {
@@ -66,8 +67,8 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
         return;
       }
       if (ativo) {
-        const{data:vinculos}=await supabase.from("loja_usuarios").select("loja_id,perfil,lojas(id,nome)").eq("usuario_id",user.id).eq("status","ativo");
-        const lista=(vinculos??[]).map(v=>{const l=v.lojas as unknown as {id:string;nome:string};return{id:l.id,nome:l.nome,perfil:v.perfil||perfil.perfil};});const preferida=lojaAtivaId();const escolhida=lista.find(l=>l.id===preferida)??lista[0];if(escolhida&&!preferida)definirLojaAtiva(escolhida.id);setLojas(lista);setLojaId(escolhida?.id??"");
+        const{data:vinculos}=await supabase.from("loja_usuarios").select("loja_id,perfil,obreiro_id,acesso_portal_obreiro,deve_trocar_senha,lojas(id,nome)").eq("usuario_id",user.id).eq("status","ativo");
+        const lista=(vinculos??[]).map(v=>{const l=v.lojas as unknown as {id:string;nome:string};return{id:l.id,nome:l.nome,perfil:v.perfil||perfil.perfil,obreiroId:v.obreiro_id??"",acessoPortal:Boolean(v.acesso_portal_obreiro),deveTrocarSenha:Boolean(v.deve_trocar_senha)};});const preferida=lojaAtivaId();const escolhida=lista.find(l=>l.id===preferida)??lista[0];if(lista.some(l=>l.deveTrocarSenha)){router.replace("/alterar-senha");return;}if(escolhida&&!preferida)definirLojaAtiva(escolhida.id);setLojas(lista);setLojaId(escolhida?.id??"");
         setUsuario({ ...perfil, permissoes: Array.isArray(perfil.permissoes) ? perfil.permissoes : [] } as PerfilSigma);
         setCarregando(false);
       }
@@ -82,17 +83,21 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
     return () => { document.body.style.overflow = ""; };
   }, [menuAberto]);
 
+  const vinculoAtivo = useMemo(() => lojas.find((loja) => loja.id === lojaId), [lojas, lojaId]);
+  const portalDisponivel = Boolean(vinculoAtivo?.acessoPortal && vinculoAtivo.obreiroId);
   const modulosPermitidos = useMemo(() => {
     if (!usuario) return [];
-    const itens = modulos.filter((modulo) => modulo.href === "/agenda" || usuario.perfil === "Administrador" || (usuario.perfil === "Venerável Mestre" && modulo.href === "/auditoria") || podeAcessarModulo(usuario.permissoes, modulo.href));
+    if (usuario.perfil === "Obreiro") return portalDisponivel ? modulos.filter((modulo) => modulo.href === "/portal-obreiro") : [];
+    const itens = modulos.filter((modulo) => modulo.href === "/portal-obreiro" ? portalDisponivel : (modulo.href === "/agenda" || usuario.perfil === "Administrador" || (usuario.perfil === "Venerável Mestre" && modulo.href === "/auditoria") || podeAcessarModulo(usuario.permissoes, modulo.href)));
     if (usuario.perfil === "Administrador") itens.push({ nome: "Usuários", href: "/usuarios", descricao: "Acessos, convites e permissões." });
     return itens;
-  }, [usuario]);
+  }, [usuario, portalDisponivel]);
 
-  const acessoPermitido = useMemo(
-    () => Boolean(usuario && (pathname.startsWith("/agenda") || usuario.perfil === "Administrador" || (usuario.perfil === "Venerável Mestre" && pathname.startsWith("/auditoria")) || podeAcessarModulo(usuario.permissoes, pathname))),
-    [usuario, pathname],
-  );
+  const acessoPermitido = useMemo(() => Boolean(usuario && (
+    pathname.startsWith("/portal-obreiro") ? portalDisponivel :
+    usuario.perfil === "Obreiro" ? false :
+    (pathname.startsWith("/agenda") || usuario.perfil === "Administrador" || (usuario.perfil === "Venerável Mestre" && pathname.startsWith("/auditoria")) || podeAcessarModulo(usuario.permissoes, pathname))
+  )), [usuario, pathname, portalDisponivel]);
 
   useEffect(()=>{if(!usuario||acessoPermitido||acessoRegistrado.current===pathname)return;acessoRegistrado.current=pathname;const supabase=createClient();void supabase.from("loja_usuarios").select("loja_id").limit(1).maybeSingle().then(({data})=>{if(data?.loja_id)return supabase.rpc("registrar_evento_seguranca",{alvo_loja:data.loja_id,modulo:pathname,acao:"visualizar",resultado:"bloqueado",descricao:"Tentativa de acesso direto a módulo sem permissão.",motivo:null});});},[usuario,acessoPermitido,pathname]);
 
@@ -111,7 +116,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
 
   const navegacao = (
     <div className="flex h-full flex-col">
-      <Link href="/dashboard" className="flex items-center gap-3 border-b border-white/10 px-1 pb-5" aria-label="Ir para o Dashboard do SIGMA 2.0">
+      <Link href={usuario.perfil === "Obreiro" ? "/portal-obreiro" : "/dashboard"} className="flex items-center gap-3 border-b border-white/10 px-1 pb-5" aria-label="Ir para o início do SIGMA 2.0">
         <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-300 to-amber-600 text-xl font-black text-slate-950 shadow-lg shadow-amber-950/30">Σ</span>
         <span><span className="block text-lg font-black tracking-[.12em] text-white">SIGMA <b className="text-amber-300">2.0</b></span><span className="mt-0.5 block text-[10px] uppercase tracking-[.14em] text-slate-500">Gestão Maçônica</span></span>
       </Link>
@@ -149,7 +154,7 @@ export function AppShell({ secao, titulo, subtitulo, children, acao }: AppShellP
             {acao ? <div className="shrink-0">{acao}</div> : <div className="hidden shrink-0 items-center gap-3 rounded-xl border border-slate-700/50 bg-slate-900/50 px-3 py-2 text-sm lg:flex"><div className="flex h-9 w-9 items-center justify-center rounded-lg bg-amber-400/15 font-bold text-amber-300">{iniciais(usuario.nome)}</div><div><p className="max-w-48 truncate font-semibold">{usuario.nome}</p><p className="text-[10px] uppercase tracking-wider text-slate-500">{usuario.perfil}</p></div></div>}
           </div>
         </header>
-        {!acessoPermitido ? <section className="mt-6 rounded-3xl border border-red-400/20 bg-red-400/10 p-6" role="alert"><h2 className="text-xl font-bold">Acesso não permitido</h2><p className="mt-2 text-sm text-red-100/80">Seu perfil não possui permissão para acessar este módulo. A tentativa foi registrada para auditoria.</p><Link href="/dashboard" className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 font-semibold text-black">Voltar ao Dashboard</Link></section> : <AccessBoundary perfil={usuario.perfil} modulo={moduloDaRota(pathname)}>{children}</AccessBoundary>}
+        {!acessoPermitido ? <section className="mt-6 rounded-3xl border border-red-400/20 bg-red-400/10 p-6" role="alert"><h2 className="text-xl font-bold">Acesso não permitido</h2><p className="mt-2 text-sm text-red-100/80">Seu perfil não possui permissão para acessar este módulo. A tentativa foi registrada para auditoria.</p><Link href={usuario.perfil === "Obreiro" ? "/portal-obreiro" : "/dashboard"} className="mt-5 inline-flex rounded-xl bg-amber-400 px-5 py-3 font-semibold text-black">Voltar ao início</Link></section> : <AccessBoundary perfil={usuario.perfil} modulo={moduloDaRota(pathname)}>{children}</AccessBoundary>}
       </main>
     </div>
   </div>;
