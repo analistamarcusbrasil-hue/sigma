@@ -158,7 +158,7 @@ begin
       frequencia_confirmada := true;
     else
       if status_presenca is distinct from 'Justificado' then
-        insert into public.presencas(
+        insert into public.presencas as presenca_atual(
           sessao_id,obreiro_id,status,observacao,cargo_sessao
         ) values(
           atual.sessao_id,
@@ -172,7 +172,7 @@ begin
         on conflict(sessao_id,obreiro_id) do update
         set status='Justificado',
             observacao=case
-              when nullif(trim(coalesce(public.presencas.observacao,'')),'') is null
+              when nullif(trim(coalesce(presenca_atual.observacao,'')),'') is null
                 then excluded.observacao
               else public.presencas.observacao || E'\n' || excluded.observacao
             end,
