@@ -2,15 +2,16 @@
 
 ## Objetivo
 
-O Administrador SIGMA pode cadastrar ou redefinir uma senha temporária em **Usuários e Acessos**. A senha é enviada exclusivamente ao Supabase Auth pelo servidor e nunca é gravada em tabelas, logs, respostas, eventos de auditoria ou documentação.
+O Administrador SIGMA pode cadastrar ou redefinir diretamente a senha inicial em **Usuários e Acessos**. A senha é enviada exclusivamente ao Supabase Auth pelo servidor e nunca é gravada em tabelas, logs, respostas, eventos de auditoria ou documentação.
 
 ## Regras
 
 - somente o perfil global Administrador ativo executa a operação;
-- mínimo de 8 caracteres, com maiúscula, minúscula e número;
+- a senha é escolhida pelo Administrador e precisa apenas respeitar o mínimo técnico de 6 caracteres do Supabase;
 - confirmação idêntica é obrigatória;
 - o motivo administrativo é obrigatório;
-- o administrador pode marcar **Obrigar troca no primeiro login**;
+- **Exigir troca no próximo login** é opcional e vem desmarcado;
+- quando a troca não é exigida, a senha informada continua funcionando até ser alterada pelo Administrador ou pelo usuário;
 - usuário já existente no Auth é atualizado, sem duplicação;
 - usuário inexistente é criado confirmado e vinculado à Loja;
 - o fluxo de convite por e-mail continua disponível.

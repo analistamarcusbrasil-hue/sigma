@@ -10,9 +10,7 @@ type ContextoAdmin = { id: string; supabase: Awaited<ReturnType<typeof createCli
 
 function validarSenha(senha: string, confirmacao: string) {
   if (senha !== confirmacao) throw new Error("A confirmação da senha não confere.");
-  if (senha.length < 8 || !/[a-z]/.test(senha) || !/[A-Z]/.test(senha) || !/[0-9]/.test(senha)) {
-    throw new Error("Use ao menos 8 caracteres, com letra maiúscula, minúscula e número.");
-  }
+  if (senha.length < 6) throw new Error("A senha informada pelo Administrador deve ter pelo menos 6 caracteres.");
 }
 function permissoesDoPerfil(perfil: PerfilUsuario, permissoes?: string[]) {
   return perfil === "Obreiro" ? ["/portal-obreiro"] : (permissoes?.length ? permissoes : permissoesPadrao(perfil));
