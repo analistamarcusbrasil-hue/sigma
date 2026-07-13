@@ -67,13 +67,14 @@ export async function convidarUsuario(input: {
   const contexto = await administradorAtual();
   const nome = input.nome.trim(), email = input.email.trim().toLowerCase();
   if (!nome || !email || !perfis.includes(input.perfil) || !input.lojaId) throw new Error("Informe nome, e-mail, perfil e Loja válidos.");
-  validarPortal(input.perfil, input.obreiroId, input.acessoPortal);
+  const acessoPortal = validarPortal(input.perfil, input.obreiroId, input.acessoPortal);
   const admin = createAdminClient();
   const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
     redirectTo: siteUrl() + "/auth/confirm?next=/redefinir-senha", data: { nome },
   });
   if (error || !data.user) throw new Error(error?.message ?? "Não foi possível enviar o convite.");
   const permissoes = permissoesDoPerfil(input.perfil, input.permissoes);
+  if (acessoPortal && !permissoes.includes("/portal-obreiro")) permissoes.push("/portal-obreiro");
   const { error: profileError } = await admin.from("profiles").upsert({
     id: data.user.id, nome, email, perfil: input.perfil, obreiro_id: input.obreiroId || null,
     status: "convite_enviado", permissoes, convite_enviado_em: new Date().toISOString(),
@@ -102,6 +103,7 @@ export async function criarUsuarioComSenhaTemporaria(input: {
   validarSenha(input.senhaTemporaria, input.confirmacaoSenha);
   const acessoPortal = validarPortal(input.perfil, input.obreiroId, input.acessoPortal);
   const permissoes = permissoesDoPerfil(input.perfil, input.permissoes);
+  if (acessoPortal && !permissoes.includes("/portal-obreiro")) permissoes.push("/portal-obreiro");
   const admin = createAdminClient();
   let usuario = await localizarUsuarioAuth(email);
   const usuarioExistia = Boolean(usuario);
@@ -167,6 +169,7 @@ export async function atualizarUsuario(input: {
   if (!input.nome.trim() || !perfis.includes(input.perfil) || !input.lojaId) throw new Error("Dados de usuário inválidos.");
   const acessoPortal = validarPortal(input.perfil, input.obreiroId, input.acessoPortal);
   const permissoes = permissoesDoPerfil(input.perfil, input.permissoes);
+  if (acessoPortal && !permissoes.includes("/portal-obreiro")) permissoes.push("/portal-obreiro");
   const admin = createAdminClient();
   const { data: vinculoAtual } = await admin.from("loja_usuarios").select("obreiro_id").eq("loja_id", input.lojaId).eq("usuario_id", input.id).maybeSingle();
   if (input.id === contexto.id && (vinculoAtual?.obreiro_id ?? null) !== (input.obreiroId ?? null)) throw new Error("Não é permitido alterar o próprio vínculo com Obreiro.");
