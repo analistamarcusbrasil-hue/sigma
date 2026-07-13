@@ -26,7 +26,7 @@ export function LoginClient({ erroInicial = "" }: { erroInicial?: string }) {
       return;
     }
 
-    const { data: profile } = await supabase.from("profiles").select("status").eq("id", data.user.id).maybeSingle();
+    const { data: profile } = await supabase.from("profiles").select("status, perfil").eq("id", data.user.id).maybeSingle();
     if (!profile || profile.status !== "ativo") {
       await supabase.auth.signOut();
       setErro("Seu acesso está suspenso, revogado ou ainda não foi ativado.");
@@ -34,7 +34,7 @@ export function LoginClient({ erroInicial = "" }: { erroInicial?: string }) {
       return;
     }
 
-    router.replace("/dashboard");
+    router.replace(profile.perfil === "Obreiro" ? "/portal-obreiro" : "/dashboard");
     router.refresh();
   }
 
@@ -45,7 +45,7 @@ export function LoginClient({ erroInicial = "" }: { erroInicial?: string }) {
           <section className="rounded-[2rem] border border-amber-400/20 bg-gradient-to-br from-amber-400/15 to-white/[0.03] p-8">
             <p className="text-sm uppercase tracking-[0.3em] text-amber-300">SIGMA 2.0</p>
             <h1 className="mt-5 text-4xl font-black leading-tight md:text-5xl">Sistema Integrado de Gestão Maçônica</h1>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300">Acesso seguro para gestão da Loja, com dados administrativos e operacionais organizados em um só sistema.</p>
+            <p className="mt-5 max-w-2xl text-base leading-7 text-zinc-300">Acesso seguro para gestão da Loja e para o Portal do Obreiro.</p>
           </section>
           <section className="rounded-[2rem] border border-white/10 bg-white/[0.04] p-8">
             <h2 className="text-3xl font-bold">Entrar no sistema</h2>
