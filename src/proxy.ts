@@ -41,7 +41,14 @@ export async function proxy(request: NextRequest) {
       return NextResponse.redirect(new URL("/alterar-senha", request.url));
     }
     const portalDisponivel = Boolean(vinculos?.some((v) => v.acesso_portal_obreiro && v.obreiro_id));
-    const destino = profile.perfil === "Obreiro" && portalDisponivel ? "/portal-obreiro" : "/dashboard";
+    if (profile.perfil === "Obreiro" && !portalDisponivel) {
+      await supabase.auth.signOut();
+      return NextResponse.redirect(new URL("/login?erro=portal_indisponivel", request.url));
+    }
+    if (profile.perfil === "Obreiro" && !publica && !caminho.startsWith("/portal-obreiro") && caminho !== "/alterar-senha") {
+      return NextResponse.redirect(new URL("/portal-obreiro", request.url));
+    }
+    const destino = profile.perfil === "Obreiro" ? "/portal-obreiro" : "/dashboard";
     if (!deveTrocar && caminho === "/alterar-senha") return NextResponse.redirect(new URL(destino, request.url));
     if (caminho === "/login") return NextResponse.redirect(new URL(destino, request.url));
   }
