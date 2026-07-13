@@ -174,7 +174,7 @@ begin
             observacao=case
               when nullif(trim(coalesce(presenca_atual.observacao,'')),'') is null
                 then excluded.observacao
-              else public.presencas.observacao || E'\n' || excluded.observacao
+              else presenca_atual.observacao || E'\n' || excluded.observacao
             end,
             updated_at=timezone('utc',now());
       end if;
