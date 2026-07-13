@@ -32,6 +32,11 @@ export type SolicitacaoPortal={
   ultimoMovimentoEm:string;
   arquivoFinalUrl:string;
   concluidoEm:string;
+  sessaoId:string;
+  sessaoData:string;
+  sessaoTitulo:string;
+  sessaoTipo:string;
+  frequenciaAjustadaEm:string;
   tramitacoes:TramitacaoSolicitacao[];
 };
 
@@ -56,6 +61,7 @@ const contextoGestao=()=>contextoBase(false);
 
 function mapearSolicitacao(i:Record<string,unknown>):SolicitacaoPortal{
   const obreiro=i.obreiro_solicitante as {nome?:string}|null;
+  const dados=(i.dados_json??{}) as Record<string,unknown>;
   const eventos=((i.solicitacoes_tramitacoes??[]) as Record<string,unknown>[])
     .map(t=>({
       id:String(t.id??""),
@@ -79,7 +85,12 @@ function mapearSolicitacao(i:Record<string,unknown>):SolicitacaoPortal{
     criadoEm:String(i.criado_em??""),
     obreiroId:String(i.obreiro_id??""),
     obreiroNome:obreiro?.nome??"",
-    dados:(i.dados_json??{}) as Record<string,unknown>,
+    dados,
+    sessaoId:String(i.sessao_id??dados.sessaoId??""),
+    sessaoData:String(dados.sessaoData??""),
+    sessaoTitulo:String(dados.sessaoTitulo??""),
+    sessaoTipo:String(dados.sessaoTipo??""),
+    frequenciaAjustadaEm:String(i.frequencia_ajustada_em??""),
     areaDestino:String(i.area_destino??"Administração"),
     responsavelPerfil:String(i.responsavel_perfil??"Venerável Mestre"),
     prioridade:String(i.prioridade??"Normal"),
@@ -96,8 +107,10 @@ const selecaoSolicitacao="*,obreiro_solicitante:obreiros!solicitacoes_obreiro_ob
 
 export async function carregarPortal(){
   const c=await contextoPortal();
-  if(!c.obreiroId)return{...c,obreiro:null,presencas:[],mensalidades:[],recebimentos:[],agenda:[],documentos:[],comunicados:[],solicitacoes:[]};
-  const[o,p,m,r,a,d,co,s]=await Promise.all([
+  if(!c.obreiroId)return{...c,obreiro:null,presencas:[],mensalidades:[],recebimentos:[],agenda:[],documentos:[],comunicados:[],sessoesDisponiveis:[],solicitacoes:[]};
+  const hoje=new Date().toISOString().slice(0,10);
+  const inicio=new Date(new Date().setFullYear(new Date().getFullYear()-2)).toISOString().slice(0,10);
+  const[o,p,m,r,a,d,co,se,s]=await Promise.all([
     c.supabase.from("obreiros").select("*").eq("id",c.obreiroId).maybeSingle(),
     c.supabase.from("presencas").select("*,sessoes(data,tipo,titulo)").eq("obreiro_id",c.obreiroId),
     c.supabase.from("mensalidades").select("*").eq("obreiro_id",c.obreiroId).order("competencia",{ascending:false}),
@@ -105,10 +118,11 @@ export async function carregarPortal(){
     c.supabase.from("agenda_eventos").select("*").eq("loja_id",c.lojaId).order("inicio"),
     c.supabase.from("documentos_gestao").select("*").eq("loja_id",c.lojaId).order("data_documento",{ascending:false}),
     c.supabase.from("comunicados_internos").select("*").eq("loja_id",c.lojaId).order("publicado_em",{ascending:false}),
+    c.supabase.from("sessoes").select("id,data,tipo,titulo,status").eq("loja_id",c.lojaId).gte("data",inicio).lte("data",hoje).neq("status","cancelada").order("data",{ascending:false}).limit(120),
     c.supabase.from("solicitacoes_obreiro").select(selecaoSolicitacao).eq("usuario_id",c.user.id).order("criado_em",{ascending:false})
   ]);
-  for(const x of[o,p,m,r,a,d,co,s])if(x.error)throw new Error("Não foi possível carregar todas as informações do Portal.");
-  return{...c,obreiro:o.data,presencas:p.data??[],mensalidades:m.data??[],recebimentos:r.data??[],agenda:a.data??[],documentos:d.data??[],comunicados:co.data??[],solicitacoes:(s.data??[]).map(i=>mapearSolicitacao(i as Record<string,unknown>))};
+  for(const x of[o,p,m,r,a,d,co,se,s])if(x.error)throw new Error("Não foi possível carregar todas as informações do Portal.");
+  return{...c,obreiro:o.data,presencas:p.data??[],mensalidades:m.data??[],recebimentos:r.data??[],agenda:a.data??[],documentos:d.data??[],comunicados:co.data??[],sessoesDisponiveis:se.data??[],solicitacoes:(s.data??[]).map(i=>mapearSolicitacao(i as Record<string,unknown>))};
 }
 
 export async function listarComunicados():Promise<ComunicadoPortal[]>{
