@@ -31,8 +31,8 @@ type Formulario = {
 };
 const vazio: Formulario = {
   nome: "", email: "", perfil: "Obreiro", obreiroId: "", permissoes: ["/portal-obreiro"],
-  acessoPortal: true, modo: "convite", senha: "", confirmar: "", mostrarSenha: false,
-  obrigarTroca: true, motivo: "",
+  acessoPortal: true, modo: "senha", senha: "", confirmar: "", mostrarSenha: false,
+  obrigarTroca: false, motivo: "",
 };
 const campo = "w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-white";
 
@@ -47,7 +47,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
   const [enviando, setEnviando] = useState(false);
   const [usuarioRevogar, setUsuarioRevogar] = useState<PerfilSigma | null>(null);
   const [usuarioSenha, setUsuarioSenha] = useState<PerfilSigma | null>(null);
-  const [senhaModal, setSenhaModal] = useState({ senha: "", confirmar: "", mostrar: false, obrigar: true, motivo: "" });
+  const [senhaModal, setSenhaModal] = useState({ senha: "", confirmar: "", mostrar: false, obrigar: false, motivo: "" });
   const [lojaId, setLojaId] = useState("");
   const [vinculos, setVinculos] = useState<Record<string, Vinculo>>({});
 
@@ -73,7 +73,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
     (usuario.nome + " " + usuario.email + " " + usuario.perfil).toLocaleLowerCase("pt-BR").includes(busca.toLocaleLowerCase("pt-BR"))
   ), [usuarios, busca]);
   const ativos = usuarios.filter((usuario) => usuario.status === "ativo").length;
-  const senhaValida = form.senha.length >= 8 && /[a-z]/.test(form.senha) && /[A-Z]/.test(form.senha) && /[0-9]/.test(form.senha);
+  const senhaValida = form.senha.length >= 6;
 
   function alterarPermissao(rota: string) {
     setForm((atual) => ({ ...atual, permissoes: atual.permissoes.includes(rota)
@@ -98,11 +98,15 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       if (editando) {
         await atualizarUsuario({ id: editando.id, nome: comum.nome, perfil: comum.perfil, lojaId,
           obreiroId: comum.obreiroId, permissoes: comum.permissoes, acessoPortal: comum.acessoPortal });
-        setMensagem("Usuário atualizado com sucesso.");
+        if (form.senha || form.confirmar) {
+          await definirSenhaTemporaria({ usuarioId: editando.id, lojaId, senhaTemporaria: form.senha,
+            confirmacaoSenha: form.confirmar, obrigarTroca: form.obrigarTroca, motivo: form.motivo });
+          setMensagem("Usuário atualizado e senha definida pelo Administrador.");
+        } else setMensagem("Usuário atualizado com sucesso.");
       } else if (form.modo === "senha") {
         await criarUsuarioComSenhaTemporaria({ ...comum, senhaTemporaria: form.senha,
           confirmacaoSenha: form.confirmar, obrigarTroca: form.obrigarTroca, motivo: form.motivo });
-        setMensagem("Usuário ativo e senha temporária definidos. A senha não foi armazenada.");
+        setMensagem("Usuário ativo e senha definida pelo Administrador. Ela continuará válida até ser alterada.");
       } else {
         await convidarUsuario(comum);
         setMensagem("Convite enviado por e-mail.");
@@ -126,7 +130,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       await definirSenhaTemporaria({ usuarioId: usuarioSenha.id, lojaId, senhaTemporaria: senhaModal.senha,
         confirmacaoSenha: senhaModal.confirmar, obrigarTroca: senhaModal.obrigar, motivo: senhaModal.motivo });
       setMensagem("Senha temporária redefinida. Nenhuma senha foi armazenada ou registrada na auditoria.");
-      setUsuarioSenha(null); setSenhaModal({ senha: "", confirmar: "", mostrar: false, obrigar: true, motivo: "" });
+      setUsuarioSenha(null); setSenhaModal({ senha: "", confirmar: "", mostrar: false, obrigar: false, motivo: "" });
       router.refresh();
     } catch (erro) {
       setMensagemErro(true); setMensagem(erro instanceof Error ? erro.message : "Não foi possível definir a senha.");
@@ -143,10 +147,10 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
     <section className="sigma-surface rounded-3xl p-5 sm:p-6">
       <p className="text-xs font-semibold uppercase tracking-[.2em] text-amber-300">Controle de acesso</p>
       <h2 className="mt-2 text-2xl font-bold">{editando ? "Editar usuário" : "Cadastrar usuário"}</h2>
-      <p className="mt-2 text-sm text-zinc-400">Envie convite por e-mail ou crie o acesso com senha temporária segura.</p>
+      <p className="mt-2 text-sm text-zinc-400">Envie convite por e-mail ou defina diretamente a senha inicial do usuário.</p>
       {!editando && <div className="mt-5 flex flex-wrap gap-2">
         <button type="button" onClick={() => setForm({ ...form, modo: "convite" })} className={form.modo === "convite" ? "rounded-xl bg-amber-400 px-4 py-2 font-bold text-black" : "rounded-xl border border-white/10 px-4 py-2"}>Convite por e-mail</button>
-        <button type="button" onClick={() => setForm({ ...form, modo: "senha" })} className={form.modo === "senha" ? "rounded-xl bg-amber-400 px-4 py-2 font-bold text-black" : "rounded-xl border border-white/10 px-4 py-2"}>Senha temporária</button>
+        <button type="button" onClick={() => setForm({ ...form, modo: "senha" })} className={form.modo === "senha" ? "rounded-xl bg-amber-400 px-4 py-2 font-bold text-black" : "rounded-xl border border-white/10 px-4 py-2"}>Senha definida pelo Administrador</button>
       </div>}
       <form onSubmit={salvar} className="mt-6 grid gap-5 md:grid-cols-2">
         <FormField id="usuario-nome" label="Nome completo" required><input id="usuario-nome" required value={form.nome} onChange={(e) => setForm({ ...form, nome: e.target.value })} className={campo} /></FormField>
@@ -168,18 +172,18 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
           <span><b>Liberar “Meu Portal” nesta Loja</b><small className="mt-1 block text-zinc-400">Exige status ativo e Obreiro vinculado. O próprio usuário não pode alterar esta opção.</small></span>
         </label>
 
-        {!editando && form.modo === "senha" && <>
-          <FormField id="senha-temporaria" label="Senha temporária" required description="Mínimo de 8 caracteres, com maiúscula, minúscula e número.">
-            <div className="flex gap-2"><input id="senha-temporaria" required type={form.mostrarSenha ? "text" : "password"} autoComplete="new-password" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className={campo} />
+        {form.modo === "senha" && <>
+          <FormField id="senha-temporaria" label={editando ? "Nova senha definida pelo Administrador (opcional)" : "Senha definida pelo Administrador"} required={!editando} description="Pode ser qualquer senha com pelo menos 6 caracteres. Ela continuará válida enquanto a troca obrigatória não for marcada.">
+            <div className="flex gap-2"><input id="senha-temporaria" required={!editando} minLength={6} type={form.mostrarSenha ? "text" : "password"} autoComplete="new-password" value={form.senha} onChange={(e) => setForm({ ...form, senha: e.target.value })} className={campo} />
             <button type="button" onClick={() => setForm({ ...form, mostrarSenha: !form.mostrarSenha })} className="rounded-xl border border-white/10 px-3">{form.mostrarSenha ? "Ocultar" : "Mostrar"}</button></div>
           </FormField>
-          <FormField id="confirmar-senha" label="Confirmar senha" required><input id="confirmar-senha" required type={form.mostrarSenha ? "text" : "password"} autoComplete="new-password" value={form.confirmar} onChange={(e) => setForm({ ...form, confirmar: e.target.value })} className={campo} /></FormField>
+          <FormField id="confirmar-senha" label="Confirmar senha" required={!editando}><input id="confirmar-senha" required={!editando} minLength={6} type={form.mostrarSenha ? "text" : "password"} autoComplete="new-password" value={form.confirmar} onChange={(e) => setForm({ ...form, confirmar: e.target.value })} className={campo} /></FormField>
           <div className="rounded-xl border border-white/10 p-4 text-sm md:col-span-2">
-            <p className={senhaValida ? "text-emerald-300" : "text-zinc-400"}>{senhaValida ? "✓ Senha atende aos requisitos" : "Use 8+ caracteres, maiúscula, minúscula e número."}</p>
+            <p className={senhaValida ? "text-emerald-300" : "text-zinc-400"}>{senhaValida ? "✓ Senha aceita" : "Use pelo menos 6 caracteres."}</p>
             {form.confirmar && <p className={form.senha === form.confirmar ? "mt-1 text-emerald-300" : "mt-1 text-red-300"}>{form.senha === form.confirmar ? "✓ Confirmação correta" : "As senhas não conferem."}</p>}
           </div>
-          <FormField id="motivo-senha" label="Motivo administrativo" required><input id="motivo-senha" required value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} className={campo} placeholder="Ex.: primeiro acesso assistido" /></FormField>
-          <label className="flex items-center gap-3 rounded-xl border border-white/10 p-4"><input type="checkbox" checked={form.obrigarTroca} onChange={(e) => setForm({ ...form, obrigarTroca: e.target.checked })} className="h-4 w-4 accent-amber-400" />Obrigar troca no primeiro login</label>
+          <FormField id="motivo-senha" label="Motivo administrativo" required={!editando || Boolean(form.senha || form.confirmar)}><input id="motivo-senha" required={!editando || Boolean(form.senha || form.confirmar)} value={form.motivo} onChange={(e) => setForm({ ...form, motivo: e.target.value })} className={campo} placeholder="Ex.: primeiro acesso assistido" /></FormField>
+          <label className="flex items-center gap-3 rounded-xl border border-white/10 p-4"><input type="checkbox" checked={form.obrigarTroca} onChange={(e) => setForm({ ...form, obrigarTroca: e.target.checked })} className="h-4 w-4 accent-amber-400" />Exigir troca no próximo login (opcional)</label>
         </>}
 
         <fieldset className="md:col-span-2"><legend className="text-sm font-medium">Permissões por módulo</legend>
@@ -187,7 +191,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
             <input type="checkbox" disabled={form.perfil === "Obreiro"} checked={form.permissoes.includes(rota)} onChange={() => alterarPermissao(rota)} className="h-4 w-4 accent-amber-400" /><span>{nomesRotas[rota]}</span>
           </label>)}</div>
         </fieldset>
-        <div className="flex gap-3 md:col-span-2"><button disabled={enviando} className="rounded-xl bg-amber-400 px-6 py-3 font-bold text-black">{enviando ? "Salvando…" : editando ? "Salvar alterações" : form.modo === "senha" ? "Criar acesso com senha temporária" : "Enviar convite"}</button>{editando && <button type="button" onClick={cancelar} className="rounded-xl border border-white/10 px-6 py-3">Cancelar</button>}</div>
+        <div className="flex gap-3 md:col-span-2"><button disabled={enviando} className="rounded-xl bg-amber-400 px-6 py-3 font-bold text-black">{enviando ? "Salvando…" : editando ? "Salvar alterações" : form.modo === "senha" ? "Criar acesso com a senha informada" : "Enviar convite"}</button>{editando && <button type="button" onClick={cancelar} className="rounded-xl border border-white/10 px-6 py-3">Cancelar</button>}</div>
       </form>
     </section>
 
@@ -202,13 +206,13 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       })}{filtrados.length === 0 && <EmptyState title="Nenhum usuário encontrado" description="Revise a busca ou cadastre o primeiro acesso." />}</div>
     </section>
 
-    {usuarioSenha && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4"><section role="dialog" aria-modal="true" className="w-full max-w-xl rounded-3xl border border-amber-400/25 bg-[#111312] p-6"><h2 className="text-2xl font-bold">Definir senha temporária</h2><p className="mt-2 text-sm text-zinc-400">{usuarioSenha.nome} · {usuarioSenha.email}</p><div className="mt-5 grid gap-4">
-      <FormField id="modal-senha" label="Senha temporária" required><div className="flex gap-2"><input id="modal-senha" type={senhaModal.mostrar ? "text" : "password"} value={senhaModal.senha} onChange={(e) => setSenhaModal({ ...senhaModal, senha: e.target.value })} className={campo} /><button type="button" onClick={() => setSenhaModal({ ...senhaModal, mostrar: !senhaModal.mostrar })} className="rounded-xl border border-white/10 px-3">{senhaModal.mostrar ? "Ocultar" : "Mostrar"}</button></div></FormField>
-      <FormField id="modal-confirmar" label="Confirmar senha" required><input id="modal-confirmar" type={senhaModal.mostrar ? "text" : "password"} value={senhaModal.confirmar} onChange={(e) => setSenhaModal({ ...senhaModal, confirmar: e.target.value })} className={campo} /></FormField>
+    {usuarioSenha && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 p-4"><section role="dialog" aria-modal="true" className="w-full max-w-xl rounded-3xl border border-amber-400/25 bg-[#111312] p-6"><h2 className="text-2xl font-bold">Definir senha para o usuário</h2><p className="mt-2 text-sm text-zinc-400">{usuarioSenha.nome} · {usuarioSenha.email}</p><div className="mt-5 grid gap-4">
+      <FormField id="modal-senha" label="Senha definida pelo Administrador" required description="Qualquer senha com pelo menos 6 caracteres."><div className="flex gap-2"><input id="modal-senha" minLength={6} type={senhaModal.mostrar ? "text" : "password"} value={senhaModal.senha} onChange={(e) => setSenhaModal({ ...senhaModal, senha: e.target.value })} className={campo} /><button type="button" onClick={() => setSenhaModal({ ...senhaModal, mostrar: !senhaModal.mostrar })} className="rounded-xl border border-white/10 px-3">{senhaModal.mostrar ? "Ocultar" : "Mostrar"}</button></div></FormField>
+      <FormField id="modal-confirmar" label="Confirmar senha" required><input id="modal-confirmar" minLength={6} type={senhaModal.mostrar ? "text" : "password"} value={senhaModal.confirmar} onChange={(e) => setSenhaModal({ ...senhaModal, confirmar: e.target.value })} className={campo} /></FormField>
       <FormField id="modal-motivo" label="Motivo administrativo" required><input id="modal-motivo" value={senhaModal.motivo} onChange={(e) => setSenhaModal({ ...senhaModal, motivo: e.target.value })} className={campo} /></FormField>
-      <label className="flex items-center gap-3"><input type="checkbox" checked={senhaModal.obrigar} onChange={(e) => setSenhaModal({ ...senhaModal, obrigar: e.target.checked })} className="h-4 w-4 accent-amber-400" />Obrigar troca no próximo login</label>
+      <label className="flex items-center gap-3"><input type="checkbox" checked={senhaModal.obrigar} onChange={(e) => setSenhaModal({ ...senhaModal, obrigar: e.target.checked })} className="h-4 w-4 accent-amber-400" />Exigir troca no próximo login (opcional)</label>
       <p className="text-xs text-zinc-500">A senha será enviada somente ao Supabase Auth. Ela não será salva no banco, logs ou auditoria.</p>
-    </div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setUsuarioSenha(null)} className="rounded-xl border border-white/10 px-5 py-3">Cancelar</button><button type="button" disabled={enviando} onClick={() => void salvarSenhaModal()} className="rounded-xl bg-amber-400 px-5 py-3 font-bold text-black">Salvar senha temporária</button></div></section></div>}
+    </div><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setUsuarioSenha(null)} className="rounded-xl border border-white/10 px-5 py-3">Cancelar</button><button type="button" disabled={enviando} onClick={() => void salvarSenhaModal()} className="rounded-xl bg-amber-400 px-5 py-3 font-bold text-black">Salvar senha informada</button></div></section></div>}
 
     {usuarioRevogar && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/75 p-4"><section role="alertdialog" aria-modal="true" className="w-full max-w-md rounded-3xl border border-red-400/25 bg-[#111312] p-6"><h2 className="text-2xl font-bold">Revogar acesso?</h2><p className="mt-2 text-sm text-zinc-400">O acesso de <strong className="text-white">{usuarioRevogar.nome}</strong> será revogado.</p><div className="mt-6 flex justify-end gap-3"><button type="button" onClick={() => setUsuarioRevogar(null)} className="rounded-xl border border-white/10 px-5 py-3">Cancelar</button><button type="button" onClick={() => { const id = usuarioRevogar.id; setUsuarioRevogar(null); void acao(() => alterarStatusUsuario(id, "revogado")); }} className="rounded-xl bg-red-500 px-5 py-3 font-bold">Revogar</button></div></section></div>}
   </div>;
