@@ -55,7 +55,7 @@ const contextoPortal=()=>contextoBase(true);
 const contextoGestao=()=>contextoBase(false);
 
 function mapearSolicitacao(i:Record<string,unknown>):SolicitacaoPortal{
-  const obreiro=i.obreiros as {nome?:string}|null;
+  const obreiro=i.obreiro_solicitante as {nome?:string}|null;
   const eventos=((i.solicitacoes_tramitacoes??[]) as Record<string,unknown>[])
     .map(t=>({
       id:String(t.id??""),
@@ -92,7 +92,7 @@ function mapearSolicitacao(i:Record<string,unknown>):SolicitacaoPortal{
   };
 }
 
-const selecaoSolicitacao="*,obreiros(nome),solicitacoes_tramitacoes(*)";
+const selecaoSolicitacao="*,obreiro_solicitante:obreiros!solicitacoes_obreiro_obreiro_id_fkey(nome),solicitacoes_tramitacoes(*)";
 
 export async function carregarPortal(){
   const c=await contextoPortal();
