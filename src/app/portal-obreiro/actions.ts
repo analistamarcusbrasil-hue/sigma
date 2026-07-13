@@ -6,7 +6,11 @@ import { createClient } from "@/lib/supabase/server";
 const tiposPermitidos = [
   "Atualização cadastral",
   "Justificativa de falta",
+  "Frequência e presença",
   "Envio de comprovante de pagamento",
+  "Assunto financeiro",
+  "Kit Placet e documentos",
+  "Documento ou certidão",
   "Solicitação à Secretaria",
   "Solicitação à Tesouraria",
   "Solicitação à Chancelaria",
@@ -51,7 +55,7 @@ export async function enviarSolicitacaoPortal(input: {
     titulo,
     descricao,
     dados_json: input.dados ?? {},
-  }).select("id,status,criado_em").single();
+  }).select("id,status,criado_em,protocolo,area_destino,prazo_em").single();
 
   if (error) {
     if (error.code === "42501") throw new Error("Seu acesso não permite enviar solicitações nesta Loja. Procure o Administrador.");
@@ -63,11 +67,19 @@ export async function enviarSolicitacaoPortal(input: {
     modulo: "/portal-obreiro",
     acao: "criar_solicitacao",
     resultado: "permitido",
-    descricao: "Solicitação do Obreiro enviada para análise.",
+    descricao: `Solicitação ${solicitacao.protocolo} enviada e direcionada para ${solicitacao.area_destino}.`,
     motivo: null,
   });
 
   revalidatePath("/portal-obreiro");
   revalidatePath("/solicitacoes");
-  return { id: solicitacao.id, status: solicitacao.status, criadoEm: solicitacao.criado_em };
+  revalidatePath("/dashboard");
+  return {
+    id: solicitacao.id,
+    protocolo: solicitacao.protocolo,
+    status: solicitacao.status,
+    areaDestino: solicitacao.area_destino,
+    prazoEm: solicitacao.prazo_em,
+    criadoEm: solicitacao.criado_em,
+  };
 }

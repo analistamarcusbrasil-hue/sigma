@@ -4,6 +4,7 @@ import { FechamentosResumoClient } from "@/components/FechamentosResumoClient";
 import { PrestacaoFinalResumoClient } from "@/components/PrestacaoFinalResumoClient";
 import { GovernancaResumoClient } from "@/components/GovernancaResumoClient";
 import { DashboardPerfilClient } from "@/components/DashboardPerfilClient";
+import { SolicitacoesDashboardClient } from "@/components/SolicitacoesDashboardClient";
 
 export default function DashboardPage() {
   return (
@@ -14,6 +15,7 @@ export default function DashboardPage() {
     >
       <DashboardClient />
       <DashboardPerfilClient />
+      <SolicitacoesDashboardClient />
       <FechamentosResumoClient />
       <PrestacaoFinalResumoClient />
       <GovernancaResumoClient />
