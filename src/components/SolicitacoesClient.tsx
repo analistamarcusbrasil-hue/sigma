@@ -8,6 +8,7 @@ import { EmptyState, Feedback, LoadingState } from "@/components/ui/Feedback";
 const statuses = ["Pendente", "Em análise", "Aprovada", "Recusada", "Concluída"] as const;
 const finalizada = (status: string) => ["Aprovada", "Recusada", "Concluída", "Cancelada"].includes(status);
 const dataHora = (valor: string) => valor ? new Date(valor).toLocaleString("pt-BR") : "—";
+const dataCurta = (valor: string) => valor ? valor.slice(0, 10).split("-").reverse().join("/") : "—";
 const diasAte = (valor: string) => valor ? Math.ceil((new Date(valor).getTime() - Date.now()) / 86400000) : 0;
 
 function Prazo({ item }: { item: SolicitacaoPortal }) {
@@ -69,7 +70,10 @@ export function SolicitacoesClient() {
       });
       await carregar();
       setTom("success");
-      setMsg(`Solicitação ${item.protocolo || item.id} atualizada e o Obreiro já pode acompanhar.`);
+      const ajustouFrequencia = Boolean(item.sessaoId) && ["Aprovada", "Concluída"].includes(novoStatus);
+      setMsg(ajustouFrequencia
+        ? `Solicitação ${item.protocolo || item.id} aprovada e frequência da sessão atualizada automaticamente para Justificado.`
+        : `Solicitação ${item.protocolo || item.id} atualizada e o Obreiro já pode acompanhar.`);
     } catch (e) {
       setTom("error");
       setMsg(e instanceof Error ? e.message : "Não foi possível tramitar a solicitação.");
@@ -137,6 +141,17 @@ export function SolicitacoesClient() {
           </div>)}
         </div>
 
+        {i.sessaoId && <div className="mt-4 rounded-2xl border border-sky-300/25 bg-sky-300/5 p-4 text-sm">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wider text-sky-200">Justificativa de frequência</p>
+              <p className="mt-1 font-black">{i.sessaoTitulo || i.sessaoTipo || "Sessão"} · {dataCurta(i.sessaoData)}</p>
+              <p className="mt-1 text-zinc-400">Ao aprovar, o sistema altera automaticamente a presença desta sessão para <b className="text-white">Justificado</b>. Se já estiver Presente, a marcação será mantida.</p>
+            </div>
+            {i.frequenciaAjustadaEm && <span className="rounded-full bg-emerald-400/15 px-3 py-1 font-bold text-emerald-200">Frequência atualizada em {dataHora(i.frequenciaAjustadaEm)}</span>}
+          </div>
+        </div>}
+
         <p className="mt-4 rounded-xl bg-black/20 p-3 text-sm text-zinc-200">{i.descricao}</p>
 
         <details className="mt-4 rounded-xl border border-white/10 p-4" open={i.status !== "Concluída"}>
@@ -163,9 +178,16 @@ export function SolicitacoesClient() {
         </div>
 
         <div className="mt-4 flex flex-wrap justify-end gap-2">
-          {["Em análise", "Aprovada", "Recusada", "Concluída"].map((s) => <button key={s} disabled={processando === i.id} onClick={() => void atualizar(i, s)} className={`rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50 ${s === "Concluída" ? "bg-emerald-400 text-black" : s === "Recusada" ? "border border-red-400/30 text-red-200" : "border border-white/10"}`}>
-            {processando === i.id ? "Processando…" : s}
-          </button>)}
+          {["Em análise", "Aprovada", "Recusada", "Concluída"].map((s) => {
+            const bloqueado = i.status === "Concluída"
+              || i.status === "Recusada"
+              || s === i.status
+              || (i.status === "Aprovada" && s !== "Concluída");
+            const rotulo = s === "Aprovada" && i.sessaoId ? "Aprovar e justificar frequência" : s;
+            return <button key={s} disabled={processando === i.id || bloqueado} onClick={() => void atualizar(i, s)} className={`rounded-xl px-4 py-2 text-sm font-bold disabled:cursor-not-allowed disabled:opacity-40 ${s === "Concluída" ? "bg-emerald-400 text-black" : s === "Recusada" ? "border border-red-400/30 text-red-200" : s === "Aprovada" && i.sessaoId ? "bg-sky-300 text-slate-950" : "border border-white/10"}`}>
+              {processando === i.id ? "Processando…" : rotulo}
+            </button>;
+          })}
         </div>
       </article>) : <EmptyState title="Nenhuma solicitação nesta fila" description="Altere os filtros ou aguarde um novo pedido destinado ao seu perfil." />}
     </section>
