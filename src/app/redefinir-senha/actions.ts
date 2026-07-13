@@ -21,12 +21,10 @@ export async function ativarPerfilAposDefinirSenha() {
   }).eq("usuario_id", user.id).in("status", ["convite_enviado", "ativo"]).select("loja_id,obreiro_id");
   if (vinculoError) throw new Error("A senha foi salva, mas o vínculo com a Loja não pôde ser ativado.");
 
-  if (perfil.perfil === "Obreiro") {
-    const { error } = await admin.from("loja_usuarios").update({
-      acesso_portal_obreiro: true, permissoes: ["/portal-obreiro"],
-    }).eq("usuario_id", user.id).eq("status", "ativo").not("obreiro_id", "is", null);
-    if (error) throw new Error("A senha foi salva, mas o Portal não pôde ser liberado.");
-  }
+  const { error: portalError } = await admin.from("loja_usuarios").update({
+    acesso_portal_obreiro: true,
+  }).eq("usuario_id", user.id).eq("status", "ativo").not("obreiro_id", "is", null).contains("permissoes", ["/portal-obreiro"]);
+  if (portalError) throw new Error("A senha foi salva, mas o Portal não pôde ser liberado.");
 
   for (const vinculo of vinculos ?? []) {
     const { error } = await supabase.rpc("registrar_evento_seguranca", {
