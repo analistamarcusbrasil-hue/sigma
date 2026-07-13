@@ -21,7 +21,7 @@ async function administradorAtual() {
 
 function siteUrl() { return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"; }
 
-export async function convidarUsuario(input: { nome: string; email: string; perfil: PerfilUsuario; obreiroId?: string | null; permissoes?: string[] }) {
+export async function convidarUsuario(input: { nome: string; email: string; perfil: PerfilUsuario; lojaId:string; obreiroId?: string | null; permissoes?: string[] }) {
   await administradorAtual();
   const nome = input.nome.trim(); const email = input.email.trim().toLowerCase();
   if (!nome || !email || !perfis.includes(input.perfil)) throw new Error("Informe nome, e-mail e perfil válidos.");
@@ -30,15 +30,20 @@ export async function convidarUsuario(input: { nome: string; email: string; perf
   if (error || !data.user) throw new Error(error?.message ?? "Não foi possível enviar o convite.");
   const { error: profileError } = await admin.from("profiles").upsert({ id: data.user.id, nome, email, perfil: input.perfil, obreiro_id: input.obreiroId || null, status: "convite_enviado", permissoes: input.permissoes?.length ? input.permissoes : permissoesPadrao(input.perfil), convite_enviado_em: new Date().toISOString() });
   if (profileError) throw new Error(profileError.message);
+  const{error:vinculoError}=await admin.from("loja_usuarios").upsert({loja_id:input.lojaId,usuario_id:data.user.id,papel:input.perfil==="Administrador"?"administrador":"membro",perfil:input.perfil,status:"convite_enviado",obreiro_id:input.obreiroId||null,permissoes:input.permissoes?.length?input.permissoes:permissoesPadrao(input.perfil)},{onConflict:"loja_id,usuario_id"});
+  if(vinculoError)throw new Error(vinculoError.message);
   revalidatePath("/usuarios");
 }
 
-export async function atualizarUsuario(input: { id: string; nome: string; perfil: PerfilUsuario; obreiroId?: string | null; permissoes: string[] }) {
-  await administradorAtual();
+export async function atualizarUsuario(input: { id: string; nome: string; perfil: PerfilUsuario; lojaId:string; obreiroId?: string | null; permissoes: string[] }) {
+  const idAtual=await administradorAtual();
   await protegerUltimoAdministrador(input.id,input.perfil);
   if (!input.nome.trim() || !perfis.includes(input.perfil)) throw new Error("Dados de usuário inválidos.");
-  const { error } = await createAdminClient().from("profiles").update({ nome: input.nome.trim(), perfil: input.perfil, obreiro_id: input.obreiroId || null, permissoes: input.permissoes }).eq("id", input.id);
+  const admin=createAdminClient();const{data:vinculoAtual}=await admin.from("loja_usuarios").select("obreiro_id").eq("loja_id",input.lojaId).eq("usuario_id",input.id).maybeSingle();
+  if(input.id===idAtual&&(vinculoAtual?.obreiro_id??null)!==(input.obreiroId??null))throw new Error("Não é permitido alterar o próprio vínculo com Obreiro.");
+  const { error } = await admin.from("profiles").update({ nome: input.nome.trim(), perfil: input.perfil, permissoes: input.permissoes }).eq("id", input.id);
   if (error) throw new Error(error.message);
+  const{error:vinculoError}=await admin.from("loja_usuarios").upsert({loja_id:input.lojaId,usuario_id:input.id,papel:input.perfil==="Administrador"?"administrador":"membro",perfil:input.perfil,status:"ativo",obreiro_id:input.obreiroId||null,permissoes:input.permissoes},{onConflict:"loja_id,usuario_id"});if(vinculoError)throw new Error(vinculoError.message);
   revalidatePath("/usuarios");
 }
 
@@ -48,6 +53,7 @@ export async function alterarStatusUsuario(id: string, status: StatusPerfil) {
   await protegerUltimoAdministrador(id,undefined,status);
   const { error } = await createAdminClient().from("profiles").update({ status }).eq("id", id);
   if (error) throw new Error(error.message);
+  await createAdminClient().from("loja_usuarios").update({status}).eq("usuario_id",id);
   revalidatePath("/usuarios");
 }
 
