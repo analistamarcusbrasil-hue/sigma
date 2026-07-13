@@ -121,9 +121,9 @@ const contextoGestao = () => contextoBase(false);
 
 function mapearSolicitacao(i: Record<string, unknown>): SolicitacaoPortal {
   const obreiro = i.obreiro_solicitante as { nome?: string } | null;
-  const dados = (i.dados_json ?? {}) as Record<string, unknown>;
+  const dados = (i.dados_json ?? {}) as unknown as Record<string, unknown>;
 
-  const eventos = ((i.solicitacoes_tramitacoes ?? []) as Record<string, unknown>[])
+  const eventos = ((i.solicitacoes_tramitacoes ?? []) as unknown as Record<string, unknown>[])
     .map((t) => ({
       id: String(t.id ?? ""),
       statusAnterior: String(t.status_anterior ?? ""),
@@ -139,9 +139,9 @@ function mapearSolicitacao(i: Record<string, unknown>): SolicitacaoPortal {
     }))
     .sort((a, b) => a.criadoEm.localeCompare(b.criadoEm));
 
-  const sessoes = ((i.sessoes_vinculadas ?? []) as Record<string, unknown>[])
+  const sessoes = ((i.sessoes_vinculadas ?? []) as unknown as Record<string, unknown>[])
     .map((v) => {
-      const s = v.sessao as Record<string, unknown> | null;
+      const s = v.sessao as unknown as Record<string, unknown> | null;
       return {
         id: String(v.sessao_id ?? ""),
         data: String(s?.data ?? ""),
@@ -152,7 +152,7 @@ function mapearSolicitacao(i: Record<string, unknown>): SolicitacaoPortal {
     })
     .sort((a, b) => a.data.localeCompare(b.data));
 
-  const anexos = ((i.anexos_solicitacao ?? []) as Record<string, unknown>[])
+  const anexos = ((i.anexos_solicitacao ?? []) as unknown as Record<string, unknown>[])
     .map((a) => ({
       id: String(a.id ?? ""),
       nome: String(a.nome_arquivo ?? ""),
@@ -267,7 +267,7 @@ export async function carregarPortal() {
 
   const solicitacoes = await assinarAnexos(
     c.supabase,
-    (so.data ?? []).map((item) => mapearSolicitacao(item as Record<string, unknown>)),
+    (so.data ?? []).map((item) => mapearSolicitacao(item as unknown as Record<string, unknown>)),
   );
 
   return {
@@ -293,7 +293,7 @@ export async function carregarComprovanteSolicitacao(id: string) {
     .eq("usuario_id", c.user.id)
     .maybeSingle();
   if (error || !data) throw new Error("Comprovante não encontrado ou não pertence ao seu usuário.");
-  const [solicitacao] = await assinarAnexos(c.supabase, [mapearSolicitacao(data as Record<string, unknown>)]);
+  const [solicitacao] = await assinarAnexos(c.supabase, [mapearSolicitacao(data as unknown as Record<string, unknown>)]);
   return { ...c, solicitacao };
 }
 
@@ -343,7 +343,7 @@ export async function listarSolicitacoesAdministrativas(): Promise<SolicitacaoPo
     .order("prazo_em", { ascending: true });
   if (error) throw new Error(error.message);
   const itens = (data ?? []).map((item) => ({
-    ...mapearSolicitacao(item as Record<string, unknown>),
+    ...mapearSolicitacao(item as unknown as Record<string, unknown>),
     perfilVisualizador: c.perfil,
   }));
   return assinarAnexos(c.supabase, itens);
