@@ -32,5 +32,7 @@ for(const regra of ['modo: "senha"','obrigarTroca: false','Pode ser qualquer sen
 const portalAction=readFileSync(join(raiz,"src/app/portal-obreiro/actions.ts"),"utf8");
 for(const regra of ["enviarSolicitacaoPortal","acesso_portal_obreiro","obreiro_id","solicitacoes_obreiro","criar_solicitacao"])assert.ok(portalAction.includes(regra),`Ação segura do Portal ausente: ${regra}`);
 const portalClient=readFileSync(join(raiz,"src/components/PortalObreiroClient.tsx"),"utf8");
-for(const regra of ["<form onSubmit","type=\"submit\"","minLength={10}","Enviando com segurança","Nenhuma solicitação enviada"])assert.ok(portalClient.includes(regra),`Formulário do Portal ausente: ${regra}`);
+for(const regra of ["onSubmit={e=>void enviar(e)}","type=\"submit\"","minLength={10}","Enviando com segurança","Nenhuma solicitação enviada",'data-permission-action="criar"'])assert.ok(portalClient.includes(regra),`Formulário do Portal ausente: ${regra}`);
+const accessBoundary=readFileSync(join(raiz,"src/components/AccessBoundary.tsx"),"utf8");
+assert.ok(accessBoundary.includes('!podeExecutar(perfil,modulo,"criar")'),"Perfil com ação criar não pode ser tratado como somente consulta");
 console.log(`${rotas.length} rotas, ${migrations.length} migrations e 3 exportações homologadas.`);
