@@ -2,9 +2,6 @@ import assert from "node:assert/strict";
 import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
-
-
-
 const raiz = process.cwd();
 const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
 for (const rota of rotas) {
@@ -39,6 +36,3 @@ for(const regra of ["onSubmit={e=>void enviar(e)}","type=\"submit\"","minLength=
 const accessBoundary=readFileSync(join(raiz,"src/components/AccessBoundary.tsx"),"utf8");
 assert.ok(accessBoundary.includes('!podeExecutar(perfil,modulo,"criar")'),"Perfil com ação criar não pode ser tratado como somente consulta");
 console.log(`${rotas.length} rotas, ${migrations.length} migrations e 3 exportações homologadas.`);
-
-
-
