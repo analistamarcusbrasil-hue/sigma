@@ -34,7 +34,14 @@ export function PortalObreiroClient() {
   const [tipo, setTipo] = useState("Atualização cadastral");
   const [titulo, setTitulo] = useState("");
   const [descricao, setDescricao] = useState("");
+  const [dataSessao, setDataSessao] = useState("");
+  const [sessaoId, setSessaoId] = useState("");
   const [enviando, setEnviando] = useState(false);
+  const exigeSessao = tipo === "Justificativa de falta" || tipo === "Frequência e presença";
+  const hoje = new Date().toISOString().slice(0, 10);
+  const sessoesNaData = (dados?.sessoesDisponiveis ?? []).filter((sessao) => !dataSessao || sessao.data === dataSessao);
+  const sessaoSelecionada = (dados?.sessoesDisponiveis ?? []).find((sessao) => sessao.id === sessaoId);
+  const presencaSelecionada = (dados?.presencas ?? []).find((presenca) => presenca.sessao_id === sessaoId);
 
   useEffect(() => {
     carregarPortal().then(setDados).catch((e) => setErro(e instanceof Error ? e.message : "Não foi possível abrir o Portal."));
@@ -61,10 +68,12 @@ export function PortalObreiroClient() {
     setErro("");
     setSucesso("");
     try {
-      const nova = await enviarSolicitacaoPortal({ lojaId: dados.lojaId, tipo, titulo, descricao });
+      const nova = await enviarSolicitacaoPortal({ lojaId: dados.lojaId, tipo, titulo, descricao, sessaoId: exigeSessao ? sessaoId : undefined });
       setSucesso(`Solicitação ${nova.protocolo} enviada para ${nova.areaDestino}. A tramitação já está disponível abaixo.`);
       setTitulo("");
       setDescricao("");
+      setDataSessao("");
+      setSessaoId("");
       setDados(await carregarPortal());
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível enviar a solicitação. Tente novamente.");
@@ -123,8 +132,30 @@ export function PortalObreiroClient() {
         <h2 className="text-xl font-black">Nova solicitação</h2>
         <form data-permission-action="criar" onSubmit={e => void enviar(e)} className="mt-4 grid gap-3" aria-busy={enviando}>
           <FormField id="portal-tipo" label="Tipo" description="O sistema encaminha automaticamente ao perfil responsável.">
-            <select id="portal-tipo" value={tipo} onChange={(e) => setTipo(e.target.value)} disabled={enviando} className={campo}>{tipos.map((x) => <option key={x}>{x}</option>)}</select>
+            <select id="portal-tipo" value={tipo} onChange={(e) => { setTipo(e.target.value); setDataSessao(""); setSessaoId(""); }} disabled={enviando} className={campo}>{tipos.map((x) => <option key={x}>{x}</option>)}</select>
           </FormField>
+          {exigeSessao && <div className="grid gap-3 rounded-2xl border border-amber-300/30 bg-amber-300/5 p-4">
+            <p className="font-bold text-amber-100">Qual sessão deseja justificar?</p>
+            <p className="text-xs leading-5 text-zinc-400">Abra o calendário, escolha a data da ausência e depois confirme a sessão. Somente sessões já realizadas ou com data até hoje aparecem.</p>
+            <FormField id="portal-data-sessao" label="Data da sessão" required description="Clique no campo para abrir o calendário.">
+              <input id="portal-data-sessao" type="date" required max={hoje} disabled={enviando} value={dataSessao} onChange={(e) => {
+                const data = e.target.value;
+                setDataSessao(data);
+                const candidatas = (dados?.sessoesDisponiveis ?? []).filter((sessao) => sessao.data === data);
+                setSessaoId(candidatas.length === 1 ? candidatas[0].id : "");
+              }} className={campo} />
+            </FormField>
+            <FormField id="portal-sessao" label="Sessão" required description={dataSessao && sessoesNaData.length === 0 ? "Nenhuma sessão cadastrada nessa data. Confirme a data ou procure a Chancelaria." : "Confirme o título da sessão antes de enviar."}>
+              <select id="portal-sessao" required disabled={enviando || !dataSessao || sessoesNaData.length === 0} value={sessaoId} onChange={(e) => setSessaoId(e.target.value)} className={campo}>
+                <option value="">{dataSessao ? "Selecione a sessão" : "Escolha primeiro a data"}</option>
+                {sessoesNaData.map((sessao) => <option key={sessao.id} value={sessao.id}>{sessao.titulo || sessao.tipo} · {dataBR(sessao.data)}</option>)}
+              </select>
+            </FormField>
+            {sessaoSelecionada && <div className="rounded-xl bg-black/25 p-3 text-sm">
+              <b>{sessaoSelecionada.titulo || sessaoSelecionada.tipo}</b>
+              <p className="text-zinc-400">{dataBR(sessaoSelecionada.data)} · Situação atual na frequência: {presencaSelecionada?.status || "Não marcada"}</p>
+            </div>}
+          </div>}
           <FormField id="portal-titulo" label="Assunto" required description="Resuma o pedido em até 120 caracteres.">
             <input id="portal-titulo" required minLength={3} maxLength={120} disabled={enviando} value={titulo} onChange={(e) => setTitulo(e.target.value)} className={campo} />
           </FormField>
@@ -152,6 +183,11 @@ export function PortalObreiroClient() {
             <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-zinc-500">Etapa atual</p><b>{i.etapaAtual}</b></div>
             <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-zinc-500">Prazo</p><b>{encerrada(i.status) ? "Atendimento finalizado" : dias < 0 ? `${Math.abs(dias)} dia(s) em atraso` : dias === 0 ? "Vence hoje" : `${dias} dia(s) restante(s)`}</b></div>
           </div>
+          {i.sessaoId && <div className="mt-3 rounded-xl border border-sky-300/20 bg-sky-300/5 p-3">
+            <p className="text-xs font-bold uppercase tracking-wider text-sky-200">Sessão vinculada</p>
+            <p className="mt-1 font-semibold">{i.sessaoTitulo || i.sessaoTipo || "Sessão"} · {dataBR(i.sessaoData)}</p>
+            {i.frequenciaAjustadaEm && <p className="mt-1 text-emerald-200">Frequência confirmada em {dataHora(i.frequenciaAjustadaEm)}.</p>}
+          </div>}
           <p className="mt-3 text-zinc-300">{i.descricao}</p>
           {i.resposta && <p className="mt-3 rounded-xl bg-emerald-400/10 p-3 text-emerald-100"><b>Resposta:</b> {i.resposta}</p>}
           {i.arquivoFinalUrl && <a href={i.arquivoFinalUrl} target="_blank" rel="noreferrer" className="mt-3 inline-flex rounded-xl bg-emerald-400 px-4 py-2 font-bold text-black">Baixar documento final</a>}
