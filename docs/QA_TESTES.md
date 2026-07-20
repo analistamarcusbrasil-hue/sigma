@@ -45,3 +45,19 @@ Componentes ainda são fortemente acoplados ao browser e ao Supabase; por isso n
 ## Portal do Obreiro
 
 Validar usuário Obreiro com e sem `obreiro_id`, isolamento de presenças/mensalidades, documento público e individual, comunicado publicado, criação de solicitação e resposta pela diretoria. O smoke test confere as policies individuais da migration 27.
+
+
+## Backup/BKP
+
+A suíte de homologação valida a rota, migration 20260804, serviço `server-only`, download privado, confirmações `RESTAURAR`/`APAGAR` e exclusão explícita de credenciais. O teste de permissões confirma Administrador e Venerável Mestre, além do bloqueio de Obreiro e Tesoureiro.
+
+Validação transacional recomendada:
+
+1. aplicar a migration em homologação;
+2. criar backup de Loja vazia e Loja com dados;
+3. verificar metadados, contagens, hash e arquivo JSON;
+4. tentar listar/baixar/restaurar com outra Loja;
+5. corromper uma cópia de teste e confirmar bloqueio de integridade;
+6. pré-visualizar restauração e confirmar criação de `backup_pre_restauracao`;
+7. comparar contagens antes/depois e confirmar que nada foi modificado;
+8. apagar versão de teste e validar auditoria/soft delete.
