@@ -700,7 +700,7 @@ export function ChancelariaClient() {
   }
 
   return (
-    <div className="mt-8 space-y-6">
+    <div className="mt-5 space-y-4 sm:mt-8 sm:space-y-6">
       {mensagemErro && <div role="alert" className="rounded-2xl border border-red-400/30 bg-red-400/10 p-4 text-sm text-red-200">{mensagemErro}</div>}
       <ModuleQuickNav
         titulo="Rotina de frequência"
@@ -716,7 +716,7 @@ export function ChancelariaClient() {
       <form
         id="sessao"
         onSubmit={cadastrarSessao}
-        className="scroll-mt-6 rounded-3xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-white/[0.03] p-6"
+        className="scroll-mt-6 rounded-2xl border border-amber-400/20 bg-gradient-to-br from-amber-400/[0.08] to-white/[0.03] p-4 sm:rounded-3xl sm:p-6"
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -820,7 +820,7 @@ export function ChancelariaClient() {
         </div>
       </form>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <article className="rounded-2xl border border-white/10 bg-white/[0.04] p-5">
           <p className="text-sm text-zinc-400">Sessões</p>
           <h3 className="mt-3 text-3xl font-bold text-amber-300">{sessoes.length}</h3>
@@ -860,7 +860,7 @@ export function ChancelariaClient() {
 
       <section
         id="controle-frequencia"
-        className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6"
+        className="scroll-mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:rounded-3xl sm:p-6"
       >
         <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
           <div>
@@ -873,7 +873,7 @@ export function ChancelariaClient() {
             </p>
           </div>
 
-          <div className="flex rounded-full border border-white/10 bg-black/20 p-1">
+          <div className="grid grid-cols-2 rounded-xl border border-white/10 bg-black/20 p-1 sm:flex sm:rounded-full">
             <button
               type="button"
               onClick={() => setAba("chamada")}
@@ -961,7 +961,7 @@ export function ChancelariaClient() {
               </select>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:gap-3">
               <button
                 type="button"
                 onClick={() => setSomenteAtivos((valor) => !valor)}
@@ -1073,7 +1073,21 @@ export function ChancelariaClient() {
               </div>
             )}
 
-            <div className="mt-6 overflow-auto rounded-2xl border border-white/10">
+            <div className="mt-6 space-y-3 md:hidden">
+              {obreirosFiltrados.map((obreiro) => {
+                const statusAtual = buscarStatus(obreiro.id);
+                return <article key={obreiro.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-2"><div><h4 className="font-bold">{obreiro.nome}</h4><p className="text-xs text-zinc-400">{obreiro.grau} · {obreiro.cargo || "Sem cargo"}</p></div><span className={`rounded-full border px-3 py-1 text-xs font-bold ${classeStatus(statusAtual)}`}>{statusAtual}</span></div>
+                  <div className="mt-3 grid gap-3">
+                    <label className="text-xs text-zinc-400">Presença<select value={statusAtual} onChange={(evento) => atualizarRegistro(obreiro.id, { status: evento.target.value as StatusPresenca })} className={`mt-1 w-full rounded-xl border px-4 py-3 text-sm font-semibold outline-none ${classeStatus(statusAtual)}`}>{statusOpcoes.map((status) => <option key={status}>{status}</option>)}</select></label>
+                    <label className="text-xs text-zinc-400">Cargo na sessão<select value={buscarCargoSessao(obreiro)} onChange={(evento) => atualizarRegistro(obreiro.id, { cargoSessao: evento.target.value })} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-sm text-zinc-200">{cargosSessao.map((cargo) => <option key={cargo}>{cargo}</option>)}</select></label>
+                    <label className="text-xs text-zinc-400">Observação<input value={buscarObservacao(obreiro.id)} onChange={(evento) => atualizarRegistro(obreiro.id, { observacao: evento.target.value })} className="mt-1 w-full rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white" placeholder="Justificativa ou observação" /></label>
+                  </div>
+                </article>;
+              })}
+            </div>
+
+            <div className="mt-6 hidden overflow-auto rounded-2xl border border-white/10 md:block">
               <table className="w-full min-w-[1200px] border-collapse text-left text-sm">
                 <thead className="bg-white/[0.06] text-zinc-300">
                   <tr>
