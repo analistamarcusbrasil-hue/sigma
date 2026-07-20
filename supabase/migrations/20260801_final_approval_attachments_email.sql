@@ -893,7 +893,13 @@ on storage.objects for insert to authenticated
 with check(
   bucket_id='solicitacoes-anexos'
   and (storage.foldername(name))[2]=auth.uid()::text
-  and public.usuario_tem_acesso_loja(((storage.foldername(name))[1])::uuid)
+  and exists(
+    select 1
+    from public.loja_usuarios lu
+    where lu.loja_id=((storage.foldername(name))[1])::uuid
+      and lu.usuario_id=auth.uid()
+      and lu.status='ativo'
+  )
 );
 
 drop policy if exists "anexos storage: autor remove" on storage.objects;
