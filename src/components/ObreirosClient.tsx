@@ -162,6 +162,10 @@ export function ObreirosClient() {
             {editandoId && <span className="rounded-full bg-amber-400/10 px-3 py-1 text-xs text-amber-300">Editando</span>}
           </div>
 
+          <div className="mt-4 rounded-2xl border border-sky-400/25 bg-sky-400/10 px-4 py-3 text-sm leading-6 text-sky-100">
+            Este cadastro será vinculado à <strong>Loja ativa</strong> selecionada no menu lateral. Para cadastrar ou administrar um obreiro de outra Loja, altere primeiro a Loja ativa.
+          </div>
+
           <div className="mt-6 space-y-4">
             <div>
               <label htmlFor="nome" className="text-sm text-zinc-300">Nome completo <span className="text-amber-300">*</span></label>
