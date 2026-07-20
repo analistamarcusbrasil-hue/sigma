@@ -18,12 +18,12 @@ A homologação encontrou falhas reais de integração entre a interface e restr
 | Agenda | restrições antigas continham textos UTF-8 corrompidos, como `SessÃ£o`, incompatíveis com a interface | migração 20260803 converte dados e recria restrições canônicas; interface valida início, término e intervalo |
 | Comunicado sem e-mail | a gravação era feita no cliente e a fila só aceitava tramitações de solicitações | ação de servidor, gatilho por público-alvo e fila ampliada para `comunicado_id` |
 | Visitante | `data_cadastro` recebia string vazia | cliente usa data atual e o banco possui `default current_date` |
-| Obreiro/Loja | Portal depende do vínculo ativo em `loja_usuarios` | vínculo validado; João está ativo, ligado ao Obreiro correto e com acesso ao Portal |
+| Obreiro/Loja | Portal depende do vínculo ativo em `loja_usuarios` | vínculo validado; João está ativo, ligado ao Obreiro correto e com acesso ao Portal; cadastro agora informa claramente que usa a Loja ativa |
 | Portal sem solicitações | consulta dependia apenas de `usuario_id` | consulta aceita o usuário autenticado ou o `obreiro_id` vinculado |
 | Portal sem comunicados | consulta não restringia publicação, expiração e público | somente publicados, vigentes e destinados ao perfil |
 | Cartões extensos | detalhes eram renderizados abertos em todos os itens | cartões compactos com abertura individual por `details/summary` |
 | Tronco sem natureza | fluxo legado não preenchia `natureza` | cliente envia natureza/origem/status e gatilho/default protegem qualquer outro insert |
-| Custos fixos | não existia edição e recálculo | edição, recálculo de parcelas e preservação das parcelas já pagas |
+| Custos fixos | não existia edição e recálculo | edição do custo e de parcela futura individual, recálculo com centavos na última parcela e preservação das parcelas já pagas |
 | Secretaria | restrições antigas usavam `ConcluÃda/ConcluÃdo` | migração 20260803 normaliza dados e restrições; erros de validação ficaram amigáveis |
 | Conclusão de solicitação | erro esperado lançado por Server Action era mascarado em produção | ação retorna resultado discriminado e a interface exibe a causa sem derrubar Server Components |
 
@@ -72,19 +72,32 @@ Teste de RLS:
 - [x] Portal: solicitações e comunicados visíveis por RLS
 - [x] Solicitações: cartões compactos e tramitação expansível
 - [x] Tronco/Livro Caixa: natureza protegida em todos os inserts
-- [x] Custos: edição e recálculo com pagamentos preservados
+- [x] Custos: edição do contrato e de parcela futura, recálculo exato e pagamentos preservados
 - [x] Secretaria: restrições de status compatíveis
 - [x] Conclusão: erro esperado tratado sem falha genérica de Server Components
 - [x] Migrações: aplicadas e idempotentes
 - [x] Preview Vercel: deploy `Ready` e página de login carregada
-- [ ] GitHub Actions: `npm run lint`, testes e `npm run build`
+- [x] Qualidade em nuvem: Vercel executou `npm run check` (`lint` + testes + build) com sucesso
+- [ ] GitHub Actions: runner permanece na fila desde a execução da `main` #40; indisponibilidade externa registrada
 - [ ] Teste autenticado completo no preview
 - [ ] Merge e promoção para produção
 - [ ] Smoke test final em `https://sigma-sand-nine.vercel.app/`
 
 ## Operação de e-mail
 
-A fila é preenchida no mesmo fluxo da publicação/movimentação. O envio externo é processado pelo servidor com Resend. A produção deve manter `SUPABASE_SECRET_KEY`, `RESEND_API_KEY`, `EMAIL_FROM` e `NEXT_PUBLIC_SITE_URL` configurados na Vercel. Falhas transitórias permanecem na fila e são tentadas novamente, com até cinco tentativas e erro registrado.
+A fila é preenchida no mesmo fluxo da publicação/movimentação. O envio externo é processado pelo servidor com Resend. Na auditoria de 19/07/2026, `SUPABASE_SECRET_KEY` e `NEXT_PUBLIC_SITE_URL` estavam configurados, mas `RESEND_API_KEY` e `EMAIL_FROM` ainda não estavam presentes. Portanto, os eventos ficam auditáveis na fila como `Aguardando configuração`, sem quebrar o fluxo. Falhas transitórias permanecem na fila e são tentadas novamente, com até cinco tentativas e erro registrado.
+
+## Evidência da qualidade em nuvem
+
+Deployment Vercel `8HgnqS3PbzTfkTaS9QJXNrMTkC5W`, commit `c485c88`, concluído como `Ready` em 57 s. O log registrou:
+
+- 24 cenários de permissão aprovados;
+- 28 rotas, 25 migrações, fluxo com SLA e 3 exportações homologadas;
+- compilação Next.js concluída;
+- verificação TypeScript concluída;
+- página `/login` carregada no preview com campos de e-mail, senha, Mostrar senha e recuperação.
+
+O GitHub Actions permaneceu em `Queued` por indisponibilidade de runner já observada também na execução da `main` #40. Para não dispensar validação, o arquivo `vercel.json` passou a executar `npm run check` em cada build da Vercel.
 
 ## Critério de publicação
 
