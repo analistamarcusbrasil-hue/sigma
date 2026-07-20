@@ -23,7 +23,7 @@ const nomesRotas: Record<string, string> = {
   "/patrimonio": "Patrimônio", "/documentos": "Documentos", "/configuracoes": "Configurações",
   "/auditoria": "Auditoria", "/backup": "Backup", "/usuarios": "Usuários", "/portal-obreiro": "Meu Portal",
 };
-type Vinculo = { obreiroId: string; acessoPortal: boolean; deveTrocarSenha: boolean };
+type Vinculo = { obreiroId: string; acessoPortal: boolean; deveTrocarSenha: boolean; senhaDefinidaEm: string };
 type Formulario = {
   nome: string; email: string; perfil: PerfilUsuario; obreiroId: string; permissoes: string[];
   acessoPortal: boolean; modo: "convite" | "senha"; senha: string; confirmar: string;
@@ -49,6 +49,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
   const [usuarioSenha, setUsuarioSenha] = useState<PerfilSigma | null>(null);
   const [senhaModal, setSenhaModal] = useState({ senha: "", confirmar: "", mostrar: false, obrigar: false, motivo: "" });
   const [lojaId, setLojaId] = useState("");
+  const [lojaNome, setLojaNome] = useState("Loja ativa");
   const [vinculos, setVinculos] = useState<Record<string, Vinculo>>({});
 
   useEffect(() => {
@@ -56,12 +57,14 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
     setLojaId(id);
     Promise.all([
       listarObreiros(),
-      createClient().from("loja_usuarios").select("usuario_id,obreiro_id,acesso_portal_obreiro,deve_trocar_senha").eq("loja_id", id),
-    ]).then(([lista, res]) => {
+      createClient().from("loja_usuarios").select("usuario_id,obreiro_id,acesso_portal_obreiro,deve_trocar_senha,senha_temporaria_definida_em").eq("loja_id", id),
+      createClient().from("lojas").select("nome").eq("id", id).maybeSingle(),
+    ]).then(([lista, res, loja]) => {
       setObreiros([...lista].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+      if (loja.data?.nome) setLojaNome(loja.data.nome);
       setVinculos(Object.fromEntries((res.data ?? []).map((v) => [v.usuario_id, {
         obreiroId: v.obreiro_id ?? "", acessoPortal: Boolean(v.acesso_portal_obreiro),
-        deveTrocarSenha: Boolean(v.deve_trocar_senha),
+        deveTrocarSenha: Boolean(v.deve_trocar_senha), senhaDefinidaEm: v.senha_temporaria_definida_em ?? "",
       }])));
     }).catch(() => {
       setMensagemErro(true);
@@ -121,6 +124,22 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
     setMensagem(""); setMensagemErro(false);
     try { await callback(); router.refresh(); }
     catch (erro) { setMensagemErro(true); setMensagem(erro instanceof Error ? erro.message : "Operação não concluída."); }
+  }
+
+  async function liberarPortal(usuario: PerfilSigma) {
+    const vinculo = vinculos[usuario.id];
+    if (!vinculo?.obreiroId) {
+      editar(usuario);
+      setMensagemErro(true);
+      setMensagem("Vincule este usuário a um Obreiro antes de liberar o Portal.");
+      return;
+    }
+    await acao(async () => {
+      await atualizarUsuario({ id: usuario.id, nome: usuario.nome, perfil: usuario.perfil, lojaId,
+        obreiroId: vinculo.obreiroId, permissoes: usuario.permissoes, acessoPortal: true });
+      setVinculos((atuais) => ({ ...atuais, [usuario.id]: { ...vinculo, acessoPortal: true } }));
+      setMensagem("Portal liberado. O usuário será avisado sem receber senha por e-mail.");
+    });
   }
 
   async function salvarSenhaModal() {
@@ -199,9 +218,22 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between"><div><h2 className="text-2xl font-bold">Acessos cadastrados</h2><p className="text-sm text-zinc-400">{filtrados.length} de {usuarios.length} usuário(s)</p></div><FormField id="busca-usuario" label="Pesquisar"><input id="busca-usuario" type="search" value={busca} onChange={(e) => setBusca(e.target.value)} className={campo} /></FormField></div>
       <div className="mt-5 space-y-3">{filtrados.map((usuario) => {
         const vinculo = vinculos[usuario.id];
-        return <article key={usuario.id} className="flex flex-col gap-4 rounded-2xl border border-white/10 bg-black/15 p-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate font-bold">{usuario.nome}</h3><StatusBadge status={usuario.status.replace("_", " ")} />{vinculo?.acessoPortal && <StatusBadge status="Portal liberado" tone="success" />}{vinculo?.deveTrocarSenha && <StatusBadge status="Troca de senha pendente" tone="warning" />}</div><p className="mt-1 break-all text-sm text-zinc-400">{usuario.email}</p><p className="mt-1 text-xs text-zinc-500">Perfil: {usuario.perfil}</p></div>
-          <div className="flex flex-wrap gap-2"><button type="button" onClick={() => editar(usuario)} className="rounded-xl border border-sky-400/25 px-3 py-2 text-sm text-sky-200">Editar</button><button type="button" onClick={() => setUsuarioSenha(usuario)} className="rounded-xl border border-amber-400/25 px-3 py-2 text-sm text-amber-200">Definir senha temporária</button><button type="button" onClick={() => void acao(() => reenviarConvite(usuario.email))} className="rounded-xl border border-white/10 px-3 py-2 text-sm">Enviar link por e-mail</button>{usuario.status === "ativo" ? <button type="button" onClick={() => void acao(() => alterarStatusUsuario(usuario.id, "suspenso"))} className="rounded-xl border border-red-400/25 px-3 py-2 text-sm text-red-200">Suspender</button> : <button type="button" onClick={() => void acao(() => alterarStatusUsuario(usuario.id, "ativo"))} className="rounded-xl border border-emerald-400/25 px-3 py-2 text-sm text-emerald-200">Reativar</button>}<button type="button" onClick={() => setUsuarioRevogar(usuario)} className="rounded-xl border border-red-400/25 px-3 py-2 text-sm text-red-200">Revogar</button></div>
+        const obreiro = obreiros.find((item) => item.id === vinculo?.obreiroId);
+        return <article key={usuario.id} className="rounded-2xl border border-white/10 bg-black/15 p-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+            <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="break-words font-bold">{usuario.nome}</h3><StatusBadge status={usuario.status.replace("_", " ")} />{vinculo?.acessoPortal && <StatusBadge status="Portal liberado" tone="success" />}{vinculo?.deveTrocarSenha && <StatusBadge status="Troca pendente" tone="warning" />}</div><p className="mt-1 break-all text-sm text-zinc-400">{usuario.email}</p></div>
+            <dl className="grid grid-cols-2 gap-2 text-xs sm:grid-cols-3 xl:min-w-[38rem]">
+              {[["Perfil", usuario.perfil], ["Loja", lojaNome], ["Obreiro vinculado", obreiro?.nome || "Não vinculado"], ["Portal", vinculo?.acessoPortal ? "Liberado" : "Não liberado"], ["Último acesso", usuario.ultimo_acesso_em ? new Date(usuario.ultimo_acesso_em).toLocaleString("pt-BR") : "Nunca acessou"], ["Senha definida", vinculo?.senhaDefinidaEm || usuario.ativado_em ? "Sim" : "Não"]].map(([rotulo, valor]) => <div key={rotulo} className="min-w-0 rounded-xl border border-white/10 p-2.5"><dt className="text-zinc-500">{rotulo}</dt><dd className="mt-1 break-words font-semibold text-zinc-200">{valor}</dd></div>)}
+            </dl>
+          </div>
+          <div className="mt-4 grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+            {!vinculo?.acessoPortal && <button type="button" onClick={() => void liberarPortal(usuario)} className="min-h-11 rounded-xl bg-emerald-400 px-3 py-2 text-sm font-black text-black">Liberar Portal</button>}
+            <button type="button" onClick={() => setUsuarioSenha(usuario)} className="min-h-11 rounded-xl border border-amber-400/25 px-3 py-2 text-sm text-amber-200">Definir senha</button>
+            {usuario.status === "ativo" ? <button type="button" onClick={() => void acao(() => alterarStatusUsuario(usuario.id, "suspenso"))} className="min-h-11 rounded-xl border border-red-400/25 px-3 py-2 text-sm text-red-200">Suspender usuário</button> : <button type="button" onClick={() => void acao(() => alterarStatusUsuario(usuario.id, "ativo"))} className="min-h-11 rounded-xl border border-emerald-400/25 px-3 py-2 text-sm text-emerald-200">Reativar usuário</button>}
+            <button type="button" onClick={() => editar(usuario)} className="min-h-11 rounded-xl border border-sky-400/25 px-3 py-2 text-sm text-sky-200">Editar perfil</button>
+            <button type="button" onClick={() => void acao(() => reenviarConvite(usuario.email))} className="min-h-11 rounded-xl border border-white/10 px-3 py-2 text-sm">Enviar link</button>
+            <button type="button" onClick={() => setUsuarioRevogar(usuario)} className="min-h-11 rounded-xl border border-red-400/25 px-3 py-2 text-sm text-red-200">Revogar</button>
+          </div>
         </article>;
       })}{filtrados.length === 0 && <EmptyState title="Nenhum usuário encontrado" description="Revise a busca ou cadastre o primeiro acesso." />}</div>
     </section>
