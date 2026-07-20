@@ -31,6 +31,7 @@ const iconesModulo: Record<string, string> = {
   "/dashboard": "⌂",
   "/agenda": "▦",
   "/obreiros": "♙",
+  "/pre-cadastros": "＋",
   "/tesouraria": "↗",
   "/chancelaria": "✓",
   "/secretaria": "▤",

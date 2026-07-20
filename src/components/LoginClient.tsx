@@ -55,6 +55,7 @@ export function LoginClient({ erroInicial = "" }: { erroInicial?: string }) {
         <div className="text-right"><Link href="/esqueci-senha" className="text-sm text-amber-300">Esqueci minha senha</Link></div>
         <button disabled={enviando} className="w-full rounded-full bg-amber-400 px-6 py-3 font-bold text-black disabled:opacity-60">{enviando ? "Entrando..." : "Entrar"}</button>
       </form>
+      <div className="mt-6 border-t border-white/10 pt-5 text-center"><p className="text-sm text-zinc-400">Ainda não possui cadastro?</p><Link href="/pre-cadastro" className="mt-2 inline-flex min-h-11 items-center justify-center rounded-xl border border-amber-300/30 px-4 py-2 font-bold text-amber-200">Solicitar pré-cadastro</Link></div>
     </section>
   </div></div></main>;
 }

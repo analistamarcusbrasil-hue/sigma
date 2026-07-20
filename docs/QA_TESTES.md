@@ -8,6 +8,7 @@ npm run test:permissions
 npm run test:homologacao
 npm run test
 npm run test:coverage
+npm run test:pre-cadastro
 npm run check
 ```
 
@@ -41,6 +42,12 @@ Após merge, acompanhe os checks da Vercel, teste login e rotas principais com u
 ## Limitações
 
 Componentes ainda são fortemente acoplados ao browser e ao Supabase; por isso não foi adicionada Testing Library agora. E2E com Playwright deve usar projeto e usuários exclusivos de homologação, com limpeza transacional. Os 15 avisos legados de lint permanecem sem impedir o build.
+
+## Pré-cadastro público
+
+Validar `/pre-cadastro` sem sessão, lista somente de Lojas ativas, obrigatoriedade dos campos e consentimentos, honeypot e limite por IP/e-mail. Confirmar no Supabase de homologação que o envio não cria registro em `auth.users`, `profiles`, `obreiros` ou `loja_usuarios`.
+
+Com Administrador e Venerável da Loja, validar fila, filtros, decisões e auditoria. Repetir com Obreiro, Secretário e usuário de outra Loja, que não podem visualizar. Converter caso novo e duplicado; depois criar usuário separadamente com Portal desmarcado e confirmar `usuario_id_criado`.
 
 ## Portal do Obreiro
 

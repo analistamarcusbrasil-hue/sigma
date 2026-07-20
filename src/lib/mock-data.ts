@@ -11,6 +11,7 @@ export const modulos = [
     href: "/agenda",
     descricao: "Calendário, sessões, prazos e compromissos.",
   },
+  { nome: "Pré-cadastros", href: "/pre-cadastros", descricao: "Solicitações públicas para avaliação administrativa." },
   { nome: "Meu Portal", href: "/portal-obreiro", descricao: "Autoatendimento, frequência, mensalidades e solicitações." },
   { nome: "Comunicados", href: "/comunicados", descricao: "Avisos internos destinados aos perfis da Loja." },
   { nome: "Solicitações", href: "/solicitacoes", descricao: "Pedidos cadastrais, financeiros e justificativas." },

@@ -21,9 +21,18 @@ function permissoesDoPerfil(perfil: PerfilUsuario, permissoes?: string[]) {
   return perfil === "Obreiro" ? ["/portal-obreiro"] : (permissoes?.length ? permissoes : permissoesPadrao(perfil));
 }
 function validarPortal(perfil: PerfilUsuario, obreiroId?: string | null, acessoPortal = false) {
-  const acesso = perfil === "Obreiro" || acessoPortal;
+  const acesso = acessoPortal;
   if (acesso && !obreiroId) throw new Error("Para liberar o Portal, vincule um Obreiro da Loja ativa.");
   return acesso;
+}
+async function registrarUsuarioDoPreCadastro(input: { preCadastroId?: string; lojaId: string; obreiroId?: string | null; usuarioId: string; criadoPor: string }) {
+  if (!input.preCadastroId) return;
+  const admin = createAdminClient();
+  const { data: pre } = await admin.from("pre_cadastros_obreiro").select("id,loja_id,obreiro_id_criado,status").eq("id", input.preCadastroId).maybeSingle();
+  if (!pre || pre.loja_id !== input.lojaId || pre.obreiro_id_criado !== input.obreiroId || pre.status !== "Convertido em Obreiro") throw new Error("Usuário criado, mas o vínculo com o pré-cadastro precisa ser revisado.");
+  const { error } = await admin.from("pre_cadastros_obreiro").update({ usuario_id_criado: input.usuarioId }).eq("id", pre.id).eq("loja_id", input.lojaId);
+  if (error) throw new Error("Usuário criado, mas não foi possível concluir o vínculo do pré-cadastro.");
+  await admin.from("pre_cadastros_eventos").insert({ loja_id: input.lojaId, pre_cadastro_id: pre.id, usuario_id: input.criadoPor, acao: "usuário criado a partir do pré-cadastro", resultado: "permitido", detalhes: { usuarioId: input.usuarioId, acessoAutomatico: false } });
 }
 async function protegerUltimoAdministrador(id: string, novoPerfil?: PerfilUsuario, novoStatus?: StatusPerfil) {
   const admin = createAdminClient();
@@ -84,7 +93,7 @@ async function avisarUsuario(
 
 export async function convidarUsuario(input: {
   nome: string; email: string; perfil: PerfilUsuario; lojaId: string; obreiroId?: string | null;
-  permissoes?: string[]; acessoPortal?: boolean;
+  permissoes?: string[]; acessoPortal?: boolean; preCadastroId?: string;
 }) {
   const contexto = await administradorAtual();
   const nome = input.nome.trim(), email = input.email.trim().toLowerCase();
@@ -109,6 +118,7 @@ export async function convidarUsuario(input: {
     permissoes, acesso_portal_obreiro: false, deve_trocar_senha: false,
   }, { onConflict: "loja_id,usuario_id" });
   if (vinculoError) throw new Error(vinculoError.message);
+  await registrarUsuarioDoPreCadastro({ preCadastroId: input.preCadastroId, lojaId: input.lojaId, obreiroId: input.obreiroId, usuarioId: data.user.id, criadoPor: contexto.id });
   await auditar(contexto, input.lojaId, "convidar", "Convite enviado para " + email + " com perfil " + input.perfil + ".");
   revalidatePath("/usuarios");
 }
@@ -116,7 +126,7 @@ export async function convidarUsuario(input: {
 export async function criarUsuarioComSenhaTemporaria(input: {
   nome: string; email: string; perfil: PerfilUsuario; lojaId: string; obreiroId?: string | null;
   permissoes?: string[]; acessoPortal?: boolean; senhaTemporaria: string; confirmacaoSenha: string;
-  obrigarTroca: boolean; motivo: string;
+  obrigarTroca: boolean; motivo: string; preCadastroId?: string;
 }) {
   const contexto = await administradorAtual();
   const nome = input.nome.trim(), email = input.email.trim().toLowerCase();
@@ -156,6 +166,7 @@ export async function criarUsuarioComSenhaTemporaria(input: {
     senha_temporaria_definida_em: agora, senha_temporaria_definida_por: contexto.id,
   }, { onConflict: "loja_id,usuario_id" });
   if (vinculoError) throw new Error(vinculoError.message);
+  await registrarUsuarioDoPreCadastro({ preCadastroId: input.preCadastroId, lojaId: input.lojaId, obreiroId: input.obreiroId, usuarioId: usuario.id, criadoPor: contexto.id });
   await auditar(contexto, input.lojaId, usuarioExistia ? "senha_temporaria_atualizar" : "senha_temporaria_criar",
     "Senha temporária definida para " + email + "; troca obrigatória: " + (input.obrigarTroca ? "sim." : "não."), input.motivo);
   await avisarUsuario(

@@ -26,6 +26,14 @@
 - [ ] Registrar commit, data, responsável e versão publicada.
 - [ ] Testar usuário com duas Lojas, troca da Loja ativa e isolamento dos dados.
 - [ ] Confirmar perfil e vínculo de Obreiro específicos em cada Loja.
+- [ ] Aplicar `20260808_public_worker_pre_registration.sql` e confirmar RLS/grants sem acesso direto de `anon`.
+- [ ] Abrir `/pre-cadastro` sem login e confirmar somente Lojas ativas, nome e número.
+- [ ] Testar campos obrigatórios, consentimentos, honeypot e limite por IP/e-mail.
+- [ ] Confirmar que o envio público não cria Obreiro, usuário ou acesso ao Portal.
+- [ ] Validar fila `/pre-cadastros` com Administrador/Venerável e bloqueio de outros perfis/Loja.
+- [ ] Aprovar, recusar, solicitar correção e converter um caso de homologação com auditoria.
+- [ ] Testar duplicidade por e-mail, CIM e CPF antes da conversão.
+- [ ] Criar usuário em etapa separada e confirmar Portal desmarcado até decisão do Administrador.
 
 
 

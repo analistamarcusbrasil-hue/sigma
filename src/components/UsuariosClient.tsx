@@ -36,7 +36,7 @@ const vazio: Formulario = {
 };
 const campo = "w-full rounded-xl border border-white/10 bg-black/25 px-4 py-3 text-white";
 
-export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
+export function UsuariosClient({ usuarios, obreiroInicialId = "", preCadastroId = "" }: { usuarios: PerfilSigma[]; obreiroInicialId?: string; preCadastroId?: string }) {
   const router = useRouter();
   const [busca, setBusca] = useState("");
   const [obreiros, setObreiros] = useState<Obreiro[]>([]);
@@ -59,6 +59,10 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       createClient().from("loja_usuarios").select("usuario_id,obreiro_id,acesso_portal_obreiro,deve_trocar_senha").eq("loja_id", id),
     ]).then(([lista, res]) => {
       setObreiros([...lista].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")));
+      if (obreiroInicialId) {
+        const inicial = lista.find((item) => item.id === obreiroInicialId);
+        if (inicial) setForm((atual) => ({ ...atual, obreiroId: inicial.id, nome: inicial.nome, email: inicial.email, perfil: "Obreiro", acessoPortal: false, permissoes: ["/portal-obreiro"] }));
+      }
       setVinculos(Object.fromEntries((res.data ?? []).map((v) => [v.usuario_id, {
         obreiroId: v.obreiro_id ?? "", acessoPortal: Boolean(v.acesso_portal_obreiro),
         deveTrocarSenha: Boolean(v.deve_trocar_senha),
@@ -67,7 +71,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
       setMensagemErro(true);
       setMensagem("Não foi possível carregar os vínculos da Loja ativa.");
     });
-  }, []);
+  }, [obreiroInicialId]);
 
   const filtrados = useMemo(() => usuarios.filter((usuario) =>
     (usuario.nome + " " + usuario.email + " " + usuario.perfil).toLocaleLowerCase("pt-BR").includes(busca.toLocaleLowerCase("pt-BR"))
@@ -94,7 +98,7 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
     try {
       if (!lojaId) throw new Error("Selecione uma Loja ativa antes de salvar.");
       const comum = { nome: form.nome.trim(), email: form.email.trim(), perfil: form.perfil, lojaId,
-        obreiroId: form.obreiroId || null, permissoes: form.permissoes, acessoPortal: form.acessoPortal };
+        obreiroId: form.obreiroId || null, permissoes: form.permissoes, acessoPortal: form.acessoPortal, preCadastroId: preCadastroId || undefined };
       if (editando) {
         await atualizarUsuario({ id: editando.id, nome: comum.nome, perfil: comum.perfil, lojaId,
           obreiroId: comum.obreiroId, permissoes: comum.permissoes, acessoPortal: comum.acessoPortal });
@@ -164,11 +168,11 @@ export function UsuariosClient({ usuarios }: { usuarios: PerfilSigma[] }) {
         <FormField id="usuario-perfil" label="Perfil de acesso" required>
           <select id="usuario-perfil" value={form.perfil} onChange={(e) => {
             const perfil = e.target.value as PerfilUsuario;
-            setForm({ ...form, perfil, permissoes: perfil === "Obreiro" ? ["/portal-obreiro"] : permissoesPadrao(perfil), acessoPortal: perfil === "Obreiro" ? true : form.acessoPortal });
+            setForm({ ...form, perfil, permissoes: perfil === "Obreiro" ? ["/portal-obreiro"] : permissoesPadrao(perfil) });
           }} className={campo}>{perfis.map((perfil) => <option key={perfil}>{perfil}</option>)}</select>
         </FormField>
         <label className="flex items-start gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/5 p-4 md:col-span-2">
-          <input type="checkbox" checked={form.acessoPortal} disabled={form.perfil === "Obreiro"} onChange={(e) => setForm({ ...form, acessoPortal: e.target.checked })} className="mt-1 h-4 w-4 accent-amber-400" />
+          <input type="checkbox" checked={form.acessoPortal} onChange={(e) => setForm({ ...form, acessoPortal: e.target.checked })} className="mt-1 h-4 w-4 accent-amber-400" />
           <span><b>Liberar “Meu Portal” nesta Loja</b><small className="mt-1 block text-zinc-400">Exige status ativo e Obreiro vinculado. O próprio usuário não pode alterar esta opção.</small></span>
         </label>
 

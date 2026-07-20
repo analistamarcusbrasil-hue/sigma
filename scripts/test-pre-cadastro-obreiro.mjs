@@ -1,0 +1,18 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+const raiz=process.cwd(); const ler=(arquivo)=>readFileSync(join(raiz,arquivo),"utf8");
+for(const arquivo of ["src/app/pre-cadastro/page.tsx","src/app/api/pre-cadastros/route.ts","src/app/pre-cadastros/page.tsx","src/app/pre-cadastros/actions.ts","src/components/PreCadastroPublicoClient.tsx","src/components/PreCadastrosAdminClient.tsx","supabase/migrations/20260808_public_worker_pre_registration.sql","docs/PRE_CADASTRO_OBREIRO.md"])assert.ok(existsSync(join(raiz,arquivo)),`Arquivo ausente: ${arquivo}`);
+const api=ler("src/app/api/pre-cadastros/route.ts");
+for(const regra of ["validarEntradaPreCadastro","website","ip_origem","count","Pré-cadastro recebido","createAdminClient","token_acompanhamento"])assert.ok(api.includes(regra),`Proteção pública ausente: ${regra}`);
+for(const proibido of ["auth.admin.createUser","acesso_portal_obreiro","from(\"obreiros\").insert"])assert.ok(!api.includes(proibido),`Formulário público executa ação proibida: ${proibido}`);
+const migration=ler("supabase/migrations/20260808_public_worker_pre_registration.sql");
+for(const regra of ["pre_cadastros_obreiro","Pendente","Correção solicitada","Convertido em Obreiro","enable row level security","pode_avaliar_pre_cadastro","revoke all on public.pre_cadastros_obreiro from anon","auditoria_operacional"])assert.ok(migration.includes(regra),`Migration insegura/incompleta: ${regra}`);
+assert.ok(!migration.includes('policy "publico insere"'),"Não deve existir INSERT direto para anon.");
+const admin=ler("src/app/pre-cadastros/actions.ts");
+for(const regra of ["Aprove o pré-cadastro antes de converter","duplicados","obreiro_id_criado","convertido em Obreiro","pré-cadastro visualizado","Venerável Mestre"])assert.ok(admin.includes(regra),`Fluxo administrativo ausente: ${regra}`);
+const usuarios=ler("src/app/usuarios/actions.ts");
+for(const regra of ["registrarUsuarioDoPreCadastro","usuario_id_criado","usuário criado a partir do pré-cadastro","const acesso = acessoPortal"])assert.ok(usuarios.includes(regra),`Criação separada de usuário ausente: ${regra}`);
+const proxy=ler("src/proxy.ts"); assert.ok(proxy.includes('caminho === "/pre-cadastro"')&&proxy.includes('caminho === "/api/pre-cadastros"'),"Rota pública não liberada de forma exata.");
+assert.ok(!proxy.includes('caminho.startsWith("/pre-cadastro")'),"A fila administrativa não pode herdar acesso público.");
+console.log("Pré-cadastro: formulário público, rate limit, RLS, avaliação, conversão, auditoria e separação do usuário validados.");
