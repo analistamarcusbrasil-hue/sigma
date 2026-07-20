@@ -27,3 +27,11 @@
 
 - Evoluir os PDFs com paginação, assinaturas e identidade da Loja.
 - Criar exportações estruturadas sem duplicar cálculos financeiros.
+
+
+## Backup e continuidade
+
+- Backup manual por Loja, histórico, download privado, hash, auditoria e exclusão protegida implementados.
+- Pré-visualização de restauração com confirmação forte e backup pré-restauração implementada.
+- Próximo passo: restauração completa transacional em ambiente de homologação, com ordem de dependências e rollback.
+- Evoluções: retenção automática, agendamento, ZIP/criptografia, binários e backup global governado.
