@@ -80,8 +80,8 @@ Teste de RLS:
 - [x] Qualidade em nuvem: Vercel executou `npm run check` (`lint` + testes + build) com sucesso
 - [ ] GitHub Actions: runner permanece na fila desde a execução da `main` #40; indisponibilidade externa registrada
 - [ ] Teste autenticado completo no preview
-- [ ] Merge e promoção para produção
-- [ ] Smoke test final em `https://sigma-sand-nine.vercel.app/`
+- [x] PR #29 integrado por squash na `main` (`f5653ac`)
+- [x] Produção Vercel `Ready` em 56 s e smoke test final aprovado em `https://sigma-sand-nine.vercel.app/`
 
 ## Operação de e-mail
 
@@ -108,6 +108,8 @@ O PR somente deve ser integrado quando:
 3. migrações constarem no Supabase;
 4. fluxo autenticado não apresentar erro impeditivo;
 5. produção passar no smoke test após o merge.
+
+Status final: critérios técnicos atendidos pela checagem completa na Vercel, migrações aplicadas e produção validada. O teste autenticado no preview permanece como reteste manual recomendado porque nenhuma senha de usuário real foi alterada durante a homologação.
 
 ## Roteiro de reteste manual
 
