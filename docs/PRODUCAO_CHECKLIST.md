@@ -27,3 +27,17 @@
 - [ ] Testar usuário com duas Lojas, troca da Loja ativa e isolamento dos dados.
 - [ ] Confirmar perfil e vínculo de Obreiro específicos em cada Loja.
 
+
+
+## Módulo Backup por Loja
+
+- [ ] Confirmar migration `20260804_backup_module.sql`.
+- [ ] Confirmar bucket privado `backups-sigma` e ausência de acesso público.
+- [ ] Testar Administrador e Venerável Mestre na própria Loja.
+- [ ] Confirmar bloqueio de Obreiro, Tesoureiro e usuário de outra Loja.
+- [ ] Criar backup, conferir SHA-256, contagens, nome e download sem cache.
+- [ ] Confirmar que o JSON não contém usuários, senhas, tokens, chaves ou variáveis de ambiente.
+- [ ] Pré-visualizar restauração com `RESTAURAR`, justificativa e backup automático anterior.
+- [ ] Confirmar que a pré-visualização não altera dados atuais.
+- [ ] Apagar com `APAGAR` e conferir histórico em status `Excluído`.
+- [ ] Conferir eventos de criação, download, restauração simulada, exclusão e bloqueio.
