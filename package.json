@@ -12,8 +12,9 @@
     "test:coverage": "vitest run --coverage",
     "test:permissions": "node --experimental-strip-types scripts/test-permissions.mjs",
     "test:homologacao": "node scripts/test-homologacao.mjs",
-    "test": "npm run test:unit && npm run test:permissions && npm run test:homologacao",
-    "check": "npm run lint && npm run test && npm run build"
+    "test": "npm run test:unit && npm run test:permissions && npm run test:homologacao && npm run test:email",
+    "check": "npm run lint && npm run test && npm run build",
+    "test:email": "node scripts/test-notificacoes-email.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.0",

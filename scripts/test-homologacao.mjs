@@ -3,16 +3,16 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const raiz = process.cwd();
-const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
+const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/notificacoes", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
 for (const rota of rotas) {
   const arquivo = rota === "/" ? "src/app/page.tsx" : `src/app${rota}/page.tsx`;
   assert.ok(existsSync(join(raiz, arquivo)), `Rota sem page.tsx: ${rota}`);
 }
 const migrations = readdirSync(join(raiz, "supabase/migrations")).filter((nome) => nome.endsWith(".sql")).sort();
-assert.equal(migrations.length, 26, "A cadeia homologada deve conter 26 migrations");
+assert.equal(migrations.length, 27, "A cadeia homologada deve conter 27 migrations");
 assert.deepEqual(
   migrations.map((nome) => nome.slice(0, 8)),
-  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804"],
+  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804", "20260805"],
   "Migrations fora de ordem"
 );
 
@@ -80,6 +80,12 @@ assert.ok(existsSync(join(raiz, "src/app/portal-obreiro/solicitacoes/[id]/compro
 
 const email = readFileSync(join(raiz, "src/lib/notificacoes-email.ts"), "utf8");
 for (const regra of ["RESEND_API_KEY", "notificacoes_email", "Aguardando configuração", "processarNotificacoesPendentes"]) assert.ok(email.includes(regra), `Notificação por e-mail ausente: ${regra}`);
+
+const notificacoesMigration = readFileSync(join(raiz, "supabase/migrations/20260805_email_notifications_resend.sql"), "utf8");
+for (const regra of ["enfileirar_email_comunicado", "enfileirar_email_tramitacao", "notificacoes_email_eventos", "Ignorado", "pode_gerenciar_notificacoes"]) assert.ok(notificacoesMigration.includes(regra), `Notificação Resend ausente: ${regra}`);
+
+const notificacoesService = readFileSync(join(raiz, "src/lib/notificacoes-email.ts"), "utf8");
+for (const regra of ["server-only", "RESEND_API_KEY", "EMAIL_FROM", "destinatarioValido", "SIGMA LUMP"]) assert.ok(notificacoesService.includes(regra), `Serviço de e-mail inseguro ou incompleto: ${regra}`);
 
 const backupMigration = readFileSync(join(raiz, "supabase/migrations/20260804_backup_module.sql"), "utf8");
 for (const regra of ["backups_sistema", "backups_eventos", "backups-sigma", "pode_gerenciar_backup", "backup_pre_restauracao", "Excluído"]) assert.ok(backupMigration.includes(regra), `Proteção de Backup ausente: ${regra}`);

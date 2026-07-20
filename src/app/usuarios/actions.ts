@@ -2,6 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { permissoesPadrao, type PerfilUsuario, type StatusPerfil } from "@/lib/auth";
+import {
+  enfileirarAvisoUsuario,
+  processarNotificacoesPendentes,
+  type EventoEmail,
+} from "@/lib/notificacoes-email";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
@@ -57,6 +62,25 @@ async function localizarUsuarioAuth(email: string) {
   return null;
 }
 function siteUrl() { return process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"; }
+async function avisarUsuario(
+  lojaId: string,
+  usuarioId: string,
+  evento: EventoEmail,
+  dedupeKey: string,
+  criadoPor: string,
+) {
+  const fila = await enfileirarAvisoUsuario({
+    lojaId,
+    usuarioId,
+    evento,
+    rotaDestino: "/login",
+    dedupeKey,
+    criadoPor,
+  });
+  if (fila.enfileirada && fila.id) {
+    await processarNotificacoesPendentes({ ids: [fila.id], limite: 1, usuarioId: criadoPor });
+  }
+}
 
 export async function convidarUsuario(input: {
   nome: string; email: string; perfil: PerfilUsuario; lojaId: string; obreiroId?: string | null;
@@ -134,6 +158,22 @@ export async function criarUsuarioComSenhaTemporaria(input: {
   if (vinculoError) throw new Error(vinculoError.message);
   await auditar(contexto, input.lojaId, usuarioExistia ? "senha_temporaria_atualizar" : "senha_temporaria_criar",
     "Senha temporária definida para " + email + "; troca obrigatória: " + (input.obrigarTroca ? "sim." : "não."), input.motivo);
+  await avisarUsuario(
+    input.lojaId,
+    usuario.id,
+    "Senha definida pelo Administrador",
+    "senha-definida:" + input.lojaId + ":" + usuario.id + ":" + agora,
+    contexto.id,
+  );
+  if (acessoPortal) {
+    await avisarUsuario(
+      input.lojaId,
+      usuario.id,
+      "Acesso ao Portal liberado",
+      "portal-liberado:" + input.lojaId + ":" + usuario.id + ":" + agora,
+      contexto.id,
+    );
+  }
   revalidatePath("/usuarios");
 }
 
@@ -155,6 +195,13 @@ export async function definirSenhaTemporaria(input: {
   if (vinculoError) throw new Error(vinculoError.message);
   await auditar(contexto, input.lojaId, "senha_temporaria_redefinir",
     "Senha temporária redefinida para o usuário " + input.usuarioId + "; troca obrigatória: " + (input.obrigarTroca ? "sim." : "não."), input.motivo);
+  await avisarUsuario(
+    input.lojaId,
+    input.usuarioId,
+    "Senha definida pelo Administrador",
+    "senha-redefinida:" + input.lojaId + ":" + input.usuarioId + ":" + agora,
+    contexto.id,
+  );
   revalidatePath("/usuarios");
 }
 
@@ -169,7 +216,7 @@ export async function atualizarUsuario(input: {
   const permissoes = permissoesDoPerfil(input.perfil, input.permissoes);
   if (acessoPortal && !permissoes.includes("/portal-obreiro")) permissoes.push("/portal-obreiro");
   const admin = createAdminClient();
-  const { data: vinculoAtual } = await admin.from("loja_usuarios").select("obreiro_id").eq("loja_id", input.lojaId).eq("usuario_id", input.id).maybeSingle();
+  const { data: vinculoAtual } = await admin.from("loja_usuarios").select("obreiro_id,acesso_portal_obreiro").eq("loja_id", input.lojaId).eq("usuario_id", input.id).maybeSingle();
   if (input.id === contexto.id && (vinculoAtual?.obreiro_id ?? null) !== (input.obreiroId ?? null)) throw new Error("Não é permitido alterar o próprio vínculo com Obreiro.");
   const { error } = await admin.from("profiles").update({ nome: input.nome.trim(), perfil: input.perfil, permissoes }).eq("id", input.id);
   if (error) throw new Error(error.message);
@@ -182,6 +229,16 @@ export async function atualizarUsuario(input: {
   if (vinculoError) throw new Error(vinculoError.message);
   await auditar(contexto, input.lojaId, "editar",
     "Acesso do usuário " + input.id + " atualizado; perfil " + input.perfil + "; Portal: " + (acessoPortal ? "liberado." : "bloqueado."));
+  if (acessoPortal && !vinculoAtual?.acesso_portal_obreiro) {
+    const agora = new Date().toISOString();
+    await avisarUsuario(
+      input.lojaId,
+      input.id,
+      "Acesso ao Portal liberado",
+      "portal-liberado:" + input.lojaId + ":" + input.id + ":" + agora,
+      contexto.id,
+    );
+  }
   revalidatePath("/usuarios");
 }
 
