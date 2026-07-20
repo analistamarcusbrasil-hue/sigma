@@ -56,7 +56,7 @@ export const modulos = [
   {
     nome: "Backup",
     href: "/backup",
-    descricao: "Backup, restauração e proteção dos dados locais.",
+    descricao: "Versões privadas, download, auditoria e restauração segura por Loja.",
   },
 ];
 
@@ -149,7 +149,7 @@ export const pendencias = [
   {
     nome: "Backup",
     href: "/backup",
-    descricao: "Backup, restauração e proteção dos dados locais.",
+    descricao: "Versões privadas, download, auditoria e restauração segura por Loja.",
   },
 ];
 
