@@ -18,7 +18,8 @@ for (const regra of [
   "pode_gerenciar_notificacoes",
   "p.status='ativo'",
   "lu.status='ativo'",
-  "on conflict(dedupe_key) do nothing",
+  "create unique index notificacoes_email_dedupe_uidx",
+  "on conflict do nothing",
 ]) assert.ok(migration.includes(regra), `Regra de notificação ausente: ${regra}`);
 
 const service = ler("src/lib/notificacoes-email.ts");
