@@ -256,9 +256,9 @@ export async function carregarPortal() {
     c.supabase.from("recebimentos").select("*").eq("obreiro_id", c.obreiroId).order("data", { ascending: false }),
     c.supabase.from("agenda_eventos").select("*").eq("loja_id", c.lojaId).order("inicio"),
     c.supabase.from("documentos_gestao").select("*").eq("loja_id", c.lojaId).order("data_documento", { ascending: false }),
-    c.supabase.from("comunicados_internos").select("*").eq("loja_id", c.lojaId).order("publicado_em", { ascending: false }),
+    c.supabase.from("comunicados_internos").select("*").eq("loja_id", c.lojaId).eq("status", "Publicado").in("publico_alvo", ["Todos os obreiros", c.perfil]).or(`expira_em.is.null,expira_em.gte.${hoje}`).order("publicado_em", { ascending: false }),
     c.supabase.from("sessoes").select("id,data,tipo,titulo,status").eq("loja_id", c.lojaId).gte("data", inicio).lte("data", hoje).neq("status", "cancelada").order("data", { ascending: false }).limit(150),
-    c.supabase.from("solicitacoes_obreiro").select(selecaoSolicitacao).eq("usuario_id", c.user.id).order("criado_em", { ascending: false }),
+    c.supabase.from("solicitacoes_obreiro").select(selecaoSolicitacao).or(`usuario_id.eq.${c.user.id},obreiro_id.eq.${c.obreiroId}`).order("criado_em", { ascending: false }),
   ]);
 
   for (const x of [o, p, m, r, a, d, co, se, so]) {

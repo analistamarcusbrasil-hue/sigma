@@ -36,7 +36,7 @@ async function dispararEmails() {
   }
 }
 
-export async function movimentarSolicitacao(input: {
+async function movimentarSolicitacaoInterna(input: {
   id: string;
   acao: string;
   mensagem: string;
@@ -83,6 +83,22 @@ export async function movimentarSolicitacao(input: {
   await dispararEmails();
   revalidar();
   return data;
+}
+
+export async function movimentarSolicitacao(input: {
+  id: string;
+  acao: string;
+  mensagem: string;
+  parecer?: string;
+  arquivoFinalUrl?: string;
+}) {
+  try {
+    const data = await movimentarSolicitacaoInterna(input);
+    return { ok: true as const, data };
+  } catch (erro) {
+    const mensagem = erro instanceof Error ? erro.message : "Não foi possível movimentar a solicitação.";
+    return { ok: false as const, erro: mensagem || "Não foi possível movimentar a solicitação." };
+  }
 }
 
 export async function responderSolicitacaoGestao(input: { id: string; mensagem: string }) {

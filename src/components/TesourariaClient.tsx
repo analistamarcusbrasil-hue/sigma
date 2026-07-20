@@ -156,7 +156,7 @@ function gerarParcelasCusto(valorTotal: number, qtd: number, dataInicio: string)
   const resto = totalCentavos % parcelasQtd;
 
   return Array.from({ length: parcelasQtd }).map((_, index) => {
-    const centavos = base + (index < resto ? 1 : 0);
+    const centavos = base + (index === parcelasQtd - 1 ? resto : 0);
 
     return {
       id: gerarId(),
@@ -187,6 +187,8 @@ export function TesourariaClient() {
   const [novoLancamento, setNovoLancamento] = useState(lancamentoVazio);
   const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
   const [novoCusto, setNovoCusto] = useState(custoVazio);
+  const [custoEditando, setCustoEditando] = useState("");
+  const [parcelaEditando, setParcelaEditando] = useState<{ custoId: string; parcelaId: string; valor: string; vencimento: string } | null>(null);
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [gestaoAtiva, setGestaoAtiva] = useState(() => obterGestaoAtualDoStorage());
   const [erroBanco, setErroBanco] = useState("");
@@ -588,14 +590,27 @@ export function TesourariaClient() {
       return;
     }
 
-    const parcelas = gerarParcelasCusto(
+    const existente = custosLoja.find((item) => item.id === custoEditando);
+    const pagas = existente?.parcelas.filter((parcela) => parcela.pago).length ?? 0;
+    if (Number(novoCusto.parcelasQtd) < pagas) {
+      alert(`Mantenha ao menos ${pagas} parcela(s), pois já existem pagamentos registrados.`);
+      return;
+    }
+
+    const recalculadas = gerarParcelasCusto(
       Number(novoCusto.valorTotal),
       Number(novoCusto.parcelasQtd),
       novoCusto.dataInicio
     );
+    const parcelas = recalculadas.map((parcela, indice) => {
+      const anterior = existente?.parcelas[indice];
+      return anterior?.pago
+        ? { ...parcela, pago: true, dataPagamento: anterior.dataPagamento }
+        : parcela;
+    });
 
     const custo: CustoLoja = {
-        id: gerarId(),
+        id: custoEditando || gerarId(),
         fornecedorNome: novoCusto.fornecedorNome.trim(),
         cnpj: novoCusto.cnpj.trim(),
         tipoDivida: novoCusto.tipoDivida,
@@ -608,9 +623,12 @@ export function TesourariaClient() {
       };
     try { await salvarCustoFinanceiro(custo); }
     catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar o custo."); return; }
-    setCustosLoja((atuais) => [custo, ...atuais]);
+    setCustosLoja((atuais) => custoEditando
+      ? atuais.map((item) => item.id === custoEditando ? custo : item)
+      : [custo, ...atuais]);
 
     setNovoCusto(custoVazio);
+    setCustoEditando("");
   }
 
   async function alternarPagamentoParcela(custoId: string, parcelaId: string) {
@@ -631,6 +649,36 @@ export function TesourariaClient() {
     try { await salvarCustoFinanceiro(atualizado); }
     catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível atualizar a parcela."); return; }
     setCustosLoja((atuais) => atuais.map((custo) => custo.id === custoId ? atualizado : custo));
+  }
+
+  async function salvarParcelaIndividual() {
+    if (!parcelaEditando) return;
+    const custo = custosLoja.find((item) => item.id === parcelaEditando.custoId);
+    const parcela = custo?.parcelas.find((item) => item.id === parcelaEditando.parcelaId);
+    if (!custo || !parcela) return;
+    if (parcela.pago) {
+      alert("Desfaça o pagamento antes de editar esta parcela.");
+      return;
+    }
+    const valor = Number(parcelaEditando.valor);
+    if (!Number.isFinite(valor) || valor <= 0 || !parcelaEditando.vencimento) {
+      alert("Informe valor e vencimento válidos para a parcela.");
+      return;
+    }
+    const parcelas = custo.parcelas.map((item) => item.id === parcela.id
+      ? { ...item, valor: Math.round(valor * 100) / 100, vencimento: parcelaEditando.vencimento }
+      : item);
+    const atualizado = {
+      ...custo,
+      valorTotal: Math.round(parcelas.reduce((total, item) => total + item.valor, 0) * 100) / 100,
+      dataInicio: parcelas[0]?.vencimento ?? custo.dataInicio,
+      dataFim: parcelas.at(-1)?.vencimento ?? custo.dataFim,
+      parcelas,
+    };
+    try { await salvarCustoFinanceiro(atualizado); }
+    catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível editar a parcela."); return; }
+    setCustosLoja((atuais) => atuais.map((item) => item.id === custo.id ? atualizado : item));
+    setParcelaEditando(null);
   }
 
   async function removerCusto(id: string) {
@@ -1071,7 +1119,14 @@ export function TesourariaClient() {
           Cadastre dívidas, fornecedores, parcelas e vencimentos. Ao marcar uma parcela como paga, o valor é abatido automaticamente do saldo da Loja.
         </p>
 
-        <form onSubmit={cadastrarCusto} className="mt-6 grid gap-3">
+        <div className="mt-5 grid gap-2 rounded-2xl border border-sky-300/15 bg-sky-300/5 p-4 text-xs text-zinc-300 sm:grid-cols-2 xl:grid-cols-4">
+          <p><b className="text-sky-100">Valor total:</b> soma de todas as parcelas.</p>
+          <p><b className="text-sky-100">Quantidade:</b> define 1/N, 2/N e seguintes.</p>
+          <p><b className="text-sky-100">Vencimento inicial:</b> as próximas vencem mensalmente.</p>
+          <p><b className="text-sky-100">Recálculo:</b> parcelas pagas são preservadas; centavos ficam na última.</p>
+        </div>
+
+        <form onSubmit={cadastrarCusto} className="mt-4 grid gap-3">
           <div className="grid gap-3 md:grid-cols-3">
             <input
               value={novoCusto.fornecedorNome}
@@ -1142,12 +1197,15 @@ export function TesourariaClient() {
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             />
 
-            <button
-              type="submit"
-              className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
-            >
-              Cadastrar custo
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
+              >
+                {custoEditando ? "Salvar e recalcular parcelas" : "Cadastrar custo"}
+              </button>
+              {custoEditando && <button type="button" onClick={() => { setCustoEditando(""); setNovoCusto(custoVazio); }} className="rounded-full border border-white/15 px-4 py-3 text-sm">Cancelar</button>}
+            </div>
           </div>
 
           <input
@@ -1159,6 +1217,10 @@ export function TesourariaClient() {
             placeholder="Descrição ou observação da dívida"
           />
         </form>
+
+        {novoCusto.valorTotal > 0 && novoCusto.parcelasQtd > 0 && novoCusto.dataInicio && <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100">
+          Resumo antes de salvar: {novoCusto.parcelasQtd} parcela(s), total de {formatarMoeda(novoCusto.valorTotal)}, início em {formatarDataBR(novoCusto.dataInicio)} e ajuste de centavos na última parcela.
+        </div>}
 
         <div className="mt-6 grid gap-4 md:grid-cols-4">
           <article className="rounded-2xl border border-white/10 bg-black/20 p-4">
@@ -1223,6 +1285,25 @@ export function TesourariaClient() {
                     </span>
                     <button
                       type="button"
+                      onClick={() => {
+                        setCustoEditando(custo.id);
+                        setNovoCusto({
+                          fornecedorNome: custo.fornecedorNome,
+                          cnpj: custo.cnpj,
+                          tipoDivida: custo.tipoDivida,
+                          descricao: custo.descricao,
+                          valorTotal: custo.valorTotal,
+                          parcelasQtd: custo.parcelasQtd,
+                          dataInicio: custo.dataInicio,
+                        });
+                        document.getElementById("custos")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="rounded-full border border-sky-400/30 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:bg-sky-400/10"
+                    >
+                      Editar e recalcular
+                    </button>
+                    <button
+                      type="button"
                       onClick={() => removerCusto(custo.id)}
                       className="rounded-full border border-red-400/30 px-3 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-400/10"
                     >
@@ -1245,52 +1326,60 @@ export function TesourariaClient() {
                     </thead>
 
                     <tbody>
-                      {custo.parcelas.map((parcela) => (
+                      {custo.parcelas.map((parcela) => {
+                        const emEdicao = parcelaEditando?.custoId === custo.id && parcelaEditando.parcelaId === parcela.id;
+                        return (
                         <tr key={parcela.id} className="border-t border-white/10">
                           <td className="px-4 py-3 text-zinc-300">
                             {parcela.numero}/{custo.parcelasQtd}
                           </td>
                           <td className="px-4 py-3 text-zinc-300">
-                            {formatarDataBR(parcela.vencimento)}
+                            {emEdicao
+                              ? <input aria-label="Vencimento da parcela" type="date" value={parcelaEditando.vencimento} onChange={(e) => setParcelaEditando({ ...parcelaEditando, vencimento: e.target.value })} className="rounded-lg border border-white/10 bg-black/30 px-2 py-1" />
+                              : formatarDataBR(parcela.vencimento)}
                           </td>
                           <td className="px-4 py-3 font-bold text-white">
-                            {formatarMoeda(parcela.valor)}
+                            {emEdicao
+                              ? <input aria-label="Valor da parcela" type="number" min="0.01" step="0.01" value={parcelaEditando.valor} onChange={(e) => setParcelaEditando({ ...parcelaEditando, valor: e.target.value })} className="w-28 rounded-lg border border-white/10 bg-black/30 px-2 py-1" />
+                              : formatarMoeda(parcela.valor)}
                           </td>
                           <td className="px-4 py-3">
-                            <span
-                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
-                                parcela.pago
-                                  ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
-                                  : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema()
-                                    ? "border-red-400/30 bg-red-400/10 text-red-300"
-                                    : "border-amber-400/30 bg-amber-400/10 text-amber-300"
-                              }`}
-                            >
+                            <span className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                              parcela.pago
+                                ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-300"
+                                : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema()
+                                  ? "border-red-400/30 bg-red-400/10 text-red-300"
+                                  : "border-amber-400/30 bg-amber-400/10 text-amber-300"
+                            }`}>
                               {parcela.pago
                                 ? "Pago"
-                                : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema()
-                                  ? "Vencido"
-                                  : "Aberto"}
+                                : new Date(`${parcela.vencimento}T12:00:00`) <= hojeDoSistema() ? "Vencido" : "Aberto"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-zinc-400">
                             {parcela.dataPagamento ? formatarDataBR(parcela.dataPagamento) : "-"}
                           </td>
                           <td className="px-4 py-3">
-                            <button
-                              type="button"
-                              onClick={() => alternarPagamentoParcela(custo.id, parcela.id)}
-                              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                                parcela.pago
-                                  ? "border border-red-400/30 text-red-300 hover:bg-red-400/10"
-                                  : "bg-emerald-400 text-black hover:bg-emerald-300"
-                              }`}
-                            >
-                              {parcela.pago ? "Desfazer pagamento" : "Marcar como paga"}
-                            </button>
+                            <div className="flex flex-wrap gap-2">
+                              {emEdicao ? <>
+                                <button type="button" onClick={() => void salvarParcelaIndividual()} className="rounded-full bg-sky-300 px-3 py-1 text-xs font-semibold text-black">Salvar parcela</button>
+                                <button type="button" onClick={() => setParcelaEditando(null)} className="rounded-full border border-white/15 px-3 py-1 text-xs">Cancelar</button>
+                              </> : !parcela.pago && <button type="button" onClick={() => setParcelaEditando({ custoId: custo.id, parcelaId: parcela.id, valor: parcela.valor.toFixed(2), vencimento: parcela.vencimento })} className="rounded-full border border-sky-400/30 px-3 py-1 text-xs font-semibold text-sky-200">Editar parcela</button>}
+                              <button
+                                type="button"
+                                onClick={() => alternarPagamentoParcela(custo.id, parcela.id)}
+                                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                                  parcela.pago
+                                    ? "border border-red-400/30 text-red-300 hover:bg-red-400/10"
+                                    : "bg-emerald-400 text-black hover:bg-emerald-300"
+                                }`}
+                              >
+                                {parcela.pago ? "Desfazer pagamento" : "Marcar como paga"}
+                              </button>
+                            </div>
                           </td>
                         </tr>
-                      ))}
+                      ); })}
                     </tbody>
                   </table>
                 </div>

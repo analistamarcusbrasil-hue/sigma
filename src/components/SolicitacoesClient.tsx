@@ -124,13 +124,14 @@ export function SolicitacoesClient() {
     setMsg("");
     try {
       await enviarArquivos(item);
-      await movimentarSolicitacao({
+      const resultado = await movimentarSolicitacao({
         id: item.id,
         acao,
         mensagem: mensagens[item.id] ?? "",
         parecer: pareceres[item.id],
         arquivoFinalUrl: links[item.id] ?? item.arquivoFinalUrl,
       });
+      if (!resultado.ok) throw new Error(resultado.erro);
       setMensagens({ ...mensagens, [item.id]: "" });
       await carregar();
       setTom("success");
@@ -222,8 +223,8 @@ export function SolicitacoesClient() {
         const tecnico = perfil === item.responsavelTecnicoPerfil;
         const podeAnalisar = tecnico || administrador;
         const encerrado = ["Recusada", "Concluída", "Cancelada"].includes(item.status);
-        return <article key={item.id} className="sigma-surface rounded-3xl p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4 border-b border-white/10 pb-4">
+        return <details key={item.id} className="group sigma-surface rounded-3xl p-5">
+          <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4 pb-1 marker:content-none">
             <div>
               <p className="text-xs font-bold uppercase tracking-wider text-amber-300">{item.protocolo}</p>
               <h2 className="mt-1 text-lg font-black">{item.titulo}</h2>
@@ -233,9 +234,9 @@ export function SolicitacoesClient() {
               <span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span>
               <p className="mt-2"><Prazo item={item} /></p>
             </div>
-          </div>
+          </summary>
 
-          <div className="mt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
+          <div className="mt-4 border-t border-white/10 pt-4 grid gap-3 text-sm sm:grid-cols-2 xl:grid-cols-4">
             {[
               ["Área técnica", item.areaDestino],
               ["Parecer por", item.responsavelTecnicoPerfil],
@@ -325,7 +326,7 @@ export function SolicitacoesClient() {
           </div>}
 
           {processando === item.id && <p className="mt-3 text-right text-sm text-amber-200">Processando com segurança…</p>}
-        </article>;
+        </details>;
       }) : <EmptyState title="Nenhuma solicitação nesta fila" description="Altere os filtros ou aguarde um novo pedido." />}
     </section>
   </div>;
