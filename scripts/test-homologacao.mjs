@@ -64,7 +64,7 @@ const gestaoAction = readFileSync(join(raiz, "src/app/solicitacoes/actions.ts"),
 for (const regra of ["movimentarSolicitacao", "movimentar_solicitacao", "ENCAMINHAR_VENERAVEL", "APROVAR_FINAL", "registrarAnexoGestao", "responderSolicitacaoGestao", "https:\\/\\/"]) assert.ok(gestaoAction.includes(regra), `Ação de tramitação ausente: ${regra}`);
 
 const portalClient = readFileSync(join(raiz, "src/components/PortalSolicitacoesClient.tsx"), "utf8");
-for (const regra of ["onSubmit={(e) => void enviar(e)}", 'type="submit"', "minLength={10}", "Enviando com segurança", "Nenhuma solicitação enviada", 'data-permission-action="criar"', "Baixar documento final", "Ver tramitação e conversa", 'type="date"', 'type="month"', "Sessões que deseja justificar", "Isenção de mensalidades", "Enviar mensagem e anexos"]) assert.ok(portalClient.includes(regra), `Formulário do Portal ausente: ${regra}`);
+for (const regra of ["onSubmit={(e) => void enviar(e)}", 'type="submit"', "minLength={10}", "Enviando com segurança", "Nenhuma solicitação enviada", 'data-permission-action="criar"', "Baixar documento aprovado", "Ver tramitação e conversa", 'type="date"', 'type="month"', "Sessões que deseja justificar", "Isenção de mensalidades", "Enviar mensagem e anexos"]) assert.ok(portalClient.includes(regra), `Formulário do Portal ausente: ${regra}`);
 
 const gestaoClient = readFileSync(join(raiz, "src/components/SolicitacoesClient.tsx"), "utf8");
 for (const regra of ["Área responsável", "Em atraso", "Tramitação e conversa", "Link HTTPS do documento final", "movimentarSolicitacao", "Emitir parecer e encaminhar ao Venerável", "Aprovar — decisão final do Venerável", "Pedir complementação"]) assert.ok(gestaoClient.includes(regra), `Central gerencial ausente: ${regra}`);

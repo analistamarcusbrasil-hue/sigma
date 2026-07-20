@@ -1113,7 +1113,7 @@ export function TesourariaClient() {
         </div>
       </section>
 
-      <section id="custos" className="scroll-mt-6 rounded-3xl border border-white/10 bg-white/[0.04] p-6">
+      <section id="custos" className="scroll-mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:rounded-3xl sm:p-6">
         <h3 className="text-2xl font-bold">Custos Fixos e Obrigações da Loja</h3>
         <p className="mt-2 text-sm text-zinc-400">
           Cadastre dívidas, fornecedores, parcelas e vencimentos. Ao marcar uma parcela como paga, o valor é abatido automaticamente do saldo da Loja.
@@ -1128,25 +1128,25 @@ export function TesourariaClient() {
 
         <form onSubmit={cadastrarCusto} className="mt-4 grid gap-3">
           <div className="grid gap-3 md:grid-cols-3">
-            <input
+            <label className="grid gap-1 text-xs text-zinc-400">Fornecedor ou órgão<input
               value={novoCusto.fornecedorNome}
               onChange={(evento) =>
                 setNovoCusto((atual) => ({ ...atual, fornecedorNome: evento.target.value }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               placeholder="Nome da empresa, órgão ou fornecedor"
-            />
+            /></label>
 
-            <input
+            <label className="grid gap-1 text-xs text-zinc-400">CNPJ (opcional)<input
               value={novoCusto.cnpj}
               onChange={(evento) =>
                 setNovoCusto((atual) => ({ ...atual, cnpj: evento.target.value }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               placeholder="CNPJ"
-            />
+            /></label>
 
-            <select
+            <label className="grid gap-1 text-xs text-zinc-400">Tipo do custo<select
               value={novoCusto.tipoDivida}
               onChange={(evento) =>
                 setNovoCusto((atual) => ({
@@ -1162,11 +1162,11 @@ export function TesourariaClient() {
               <option>Taxa de Iniciação</option>
               <option>Custo variável por obreiro</option>
               <option>Outro</option>
-            </select>
+            </select></label>
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
-            <input
+            <label className="grid gap-1 text-xs text-zinc-400">Valor total da obrigação<input
               type="number"
               min="0"
               value={novoCusto.valorTotal}
@@ -1175,9 +1175,9 @@ export function TesourariaClient() {
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               placeholder="Valor total"
-            />
+            /></label>
 
-            <input
+            <label className="grid gap-1 text-xs text-zinc-400">Quantidade de parcelas<input
               type="number"
               min="1"
               value={novoCusto.parcelasQtd}
@@ -1186,16 +1186,16 @@ export function TesourariaClient() {
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
               placeholder="Parcelas"
-            />
+            /></label>
 
-            <input
+            <label className="grid gap-1 text-xs text-zinc-400">Primeiro vencimento<input
               type="date"
               value={novoCusto.dataInicio}
               onChange={(evento) =>
                 setNovoCusto((atual) => ({ ...atual, dataInicio: evento.target.value }))
               }
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
-            />
+            /></label>
 
             <div className="flex gap-2">
               <button
@@ -1208,14 +1208,14 @@ export function TesourariaClient() {
             </div>
           </div>
 
-          <input
+          <label className="grid gap-1 text-xs text-zinc-400">Descrição ou observação<input
             value={novoCusto.descricao}
             onChange={(evento) =>
               setNovoCusto((atual) => ({ ...atual, descricao: evento.target.value }))
             }
             className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             placeholder="Descrição ou observação da dívida"
-          />
+          /></label>
         </form>
 
         {novoCusto.valorTotal > 0 && novoCusto.parcelasQtd > 0 && novoCusto.dataInicio && <div className="mt-3 rounded-xl border border-amber-300/20 bg-amber-300/5 p-3 text-sm text-amber-100">

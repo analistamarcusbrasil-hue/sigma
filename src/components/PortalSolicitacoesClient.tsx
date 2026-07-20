@@ -56,6 +56,8 @@ export function PortalSolicitacoesClient() {
   const [arquivosResposta, setArquivosResposta] = useState<Record<string, File[]>>({});
   const [enviando, setEnviando] = useState(false);
   const [processando, setProcessando] = useState("");
+  const [novaAberta, setNovaAberta] = useState(false);
+  const [vistos, setVistos] = useState<Record<string, string>>({});
 
   async function carregar() {
     setDados(await carregarPortal());
@@ -64,6 +66,13 @@ export function PortalSolicitacoesClient() {
   useEffect(() => {
     carregar().catch((e) => setErro(e instanceof Error ? e.message : "Não foi possível carregar as solicitações."));
   }, []);
+
+  useEffect(() => {
+    if (!dados?.user.id) return;
+    try {
+      setVistos(JSON.parse(localStorage.getItem(`sigma-solicitacoes-vistas:${dados.user.id}`) || "{}"));
+    } catch { setVistos({}); }
+  }, [dados?.user.id]);
 
   const exigeSessoes = tipo === "Justificativa de falta" || tipo === "Frequência e presença";
   const exigeIsencao = tipo === "Isenção de mensalidades";
@@ -86,6 +95,13 @@ export function PortalSolicitacoesClient() {
     setIsencaoFim("");
     setArquivos([]);
     setChaveArquivos((valor) => valor + 1);
+  }
+
+  function marcarComoVista(id: string, momento: string) {
+    if (!dados?.user.id || !momento) return;
+    const atualizados = { ...vistos, [id]: momento };
+    setVistos(atualizados);
+    localStorage.setItem(`sigma-solicitacoes-vistas:${dados.user.id}`, JSON.stringify(atualizados));
   }
 
   function selecionarPeriodo(inicio: string, fim: string) {
@@ -160,6 +176,7 @@ export function PortalSolicitacoesClient() {
       }
       setSucesso(`Solicitação ${nova.protocolo} enviada para ${nova.areaDestino}. A área emitirá parecer e o Venerável dará a decisão final.${avisoAnexo}`);
       limparFormulario();
+      setNovaAberta(false);
       await carregar();
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível enviar a solicitação.");
@@ -200,11 +217,13 @@ export function PortalSolicitacoesClient() {
     {erro && <Feedback tone="error">{erro}</Feedback>}
     {sucesso && <Feedback tone="success">{sucesso}</Feedback>}
 
-    <section className="sigma-surface rounded-3xl p-6">
-      <h2 className="text-xl font-black">Nova solicitação</h2>
-      <p className="mt-2 text-sm text-zinc-400">Você pode anexar fotos, PDF ou documentos. A área responsável analisa e somente o Venerável profere a decisão final.</p>
+    <section id="nova-solicitacao" className="sigma-surface scroll-mt-28 rounded-2xl p-4 sm:rounded-3xl sm:p-6">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div><h2 className="text-xl font-black">Nova solicitação</h2><p className="mt-1 text-sm text-zinc-400">Envie seu pedido e acompanhe cada etapa.</p></div>
+        <button type="button" onClick={() => setNovaAberta((valor) => !valor)} aria-expanded={novaAberta} className="min-h-11 w-full rounded-xl bg-amber-400 px-5 py-3 font-black text-black sm:w-auto">{novaAberta ? "Recolher formulário" : "Criar solicitação"}</button>
+      </div>
 
-      <form data-permission-action="criar" onSubmit={(e) => void enviar(e)} className="mt-5 grid gap-4" aria-busy={enviando}>
+      {novaAberta && <form data-permission-action="criar" onSubmit={(e) => void enviar(e)} className="mt-5 grid gap-4 border-t border-white/10 pt-5" aria-busy={enviando}>
         <FormField id="portal-tipo" label="Tipo" description="O sistema distribui automaticamente para Tesouraria, Chancelaria ou Secretaria.">
           <select id="portal-tipo" value={tipo} onChange={(e) => {
             setTipo(e.target.value);
@@ -289,25 +308,28 @@ export function PortalSolicitacoesClient() {
           <input key={chaveArquivos} id="portal-anexos" type="file" multiple accept={formatosAceitos} disabled={enviando} onChange={(e) => setArquivos(Array.from(e.target.files ?? []))} className={campo} />
         </FormField>
         {arquivos.length > 0 && <p className="text-sm text-zinc-300">{arquivos.length} arquivo(s): {arquivos.map((arquivo) => arquivo.name).join(", ")}</p>}
-        <button type="submit" disabled={enviando || (exigeSessoes && sessoesSelecionadas.length === 0)} className="rounded-xl bg-amber-400 p-3 font-bold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50">
+        <button type="submit" disabled={enviando || (exigeSessoes && sessoesSelecionadas.length === 0)} className="min-h-12 w-full rounded-xl bg-amber-400 p-3 font-bold text-black transition hover:bg-amber-300 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto">
           {enviando ? "Enviando com segurança…" : "Enviar para análise técnica"}
         </button>
-      </form>
+      </form>}
     </section>
 
-    <section className="sigma-surface rounded-3xl p-6">
-      <h2 className="text-xl font-black">Minhas solicitações, mensagens e comprovantes</h2>
-      <div className="mt-4 space-y-5">
+    <section id="minhas-solicitacoes" className="sigma-surface rounded-2xl p-4 sm:rounded-3xl sm:p-6">
+      <h2 className="text-xl font-black">Minhas solicitações</h2>
+      <p className="mt-1 text-sm text-zinc-400">Os detalhes ficam recolhidos. Abra somente o protocolo que deseja consultar.</p>
+      <div className="mt-4 space-y-3 sm:space-y-5">
         {dados.solicitacoes.length ? dados.solicitacoes.map((item) => {
           const dias = diasAte(item.prazoEm);
-          return <details key={item.id} className="group rounded-2xl border border-white/10 p-4 text-sm">
-            <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 marker:content-none">
-              <div>
+          const ultimaResposta = [...item.tramitacoes].reverse().find((movimento) => movimento.autorPerfil && movimento.autorPerfil !== "Obreiro");
+          const respostaNova = Boolean(ultimaResposta?.criadoEm && ultimaResposta.criadoEm > (vistos[item.id] || item.criadoEm));
+          return <details key={item.id} onToggle={(e) => { if (e.currentTarget.open && ultimaResposta?.criadoEm) marcarComoVista(item.id, ultimaResposta.criadoEm); }} className="group rounded-2xl border border-white/10 p-3 text-sm sm:p-4">
+            <summary className="flex cursor-pointer list-none flex-col gap-3 marker:content-none sm:flex-row sm:items-start sm:justify-between">
+              <div className="min-w-0">
                 <p className="text-xs font-bold uppercase tracking-wider text-amber-300">{item.protocolo}</p>
-                <h3 className="mt-1 text-lg font-black">{item.titulo}</h3>
+                <div className="mt-1 flex flex-wrap items-center gap-2"><h3 className="break-words text-base font-black sm:text-lg">{item.titulo}</h3>{respostaNova && <span className="rounded-full bg-sky-400 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-950">Nova resposta</span>}</div>
                 <p className="text-zinc-400">{item.tipo} · {dataHora(item.criadoEm)}</p>
               </div>
-              <div className="text-right"><span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span><p className="mt-2 text-xs text-zinc-500">Clique para abrir os detalhes</p></div>
+              <div className="flex items-center justify-between gap-3 sm:block sm:text-right"><span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span><span className="rounded-xl border border-white/10 px-3 py-2 font-bold text-white group-open:hidden">Ver detalhes</span><span className="hidden rounded-xl border border-white/10 px-3 py-2 font-bold text-white group-open:inline">Recolher</span></div>
             </summary>
 
             <div className="mt-3 border-t border-white/10 pt-3 grid gap-2 sm:grid-cols-3">
@@ -339,12 +361,12 @@ export function PortalSolicitacoesClient() {
                 : <span key={anexo.id} className="rounded-lg bg-white/5 px-3 py-2 text-zinc-500">{anexo.nome}</span>)}</div>
             </div>}
 
-            {(item.codigoComprovante || item.arquivoFinalUrl) && <div className="mt-3 flex flex-wrap gap-2">
-              {item.codigoComprovante && <a href={`/portal-obreiro/solicitacoes/${item.id}/comprovante`} className="rounded-xl bg-emerald-400 px-4 py-2 font-bold text-black">Abrir e imprimir comprovante</a>}
-              {item.arquivoFinalUrl && <a href={item.arquivoFinalUrl} target="_blank" rel="noreferrer" className="rounded-xl border border-emerald-300/30 px-4 py-2 font-bold text-emerald-200">Baixar documento final</a>}
+            {(item.codigoComprovante || item.arquivoFinalUrl) && <div className="mt-3 grid gap-2 sm:flex sm:flex-wrap">
+              {item.codigoComprovante && <a href={`/portal-obreiro/solicitacoes/${item.id}/comprovante`} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-400 px-4 py-2 text-center font-bold text-black">Abrir e imprimir comprovante</a>}
+              {item.arquivoFinalUrl && <a href={item.arquivoFinalUrl} target="_blank" rel="noreferrer" className="inline-flex min-h-11 items-center justify-center rounded-xl border border-emerald-300/30 px-4 py-2 text-center font-bold text-emerald-200">Baixar documento aprovado</a>}
             </div>}
 
-            <details className="mt-3 rounded-xl border border-white/10 p-3" open={!encerrada(item.status)}>
+            <details className="mt-3 rounded-xl border border-white/10 p-3">
               <summary className="cursor-pointer font-bold">Ver tramitação e conversa ({item.tramitacoes.length})</summary>
               <ol className="mt-4 space-y-3 border-l border-amber-400/30 pl-4">{item.tramitacoes.map((movimento) => <li key={movimento.id} className="relative">
                 <span className="absolute -left-[21px] top-1 h-2 w-2 rounded-full bg-amber-300" />
@@ -359,7 +381,7 @@ export function PortalSolicitacoesClient() {
                 <textarea rows={3} maxLength={2000} value={mensagens[item.id] ?? ""} onChange={(e) => setMensagens({ ...mensagens, [item.id]: e.target.value })} placeholder="Escreva sua resposta para a Loja…" className={`mt-1 ${campo}`} />
               </label>
               <input type="file" multiple accept={formatosAceitos} onChange={(e) => setArquivosResposta({ ...arquivosResposta, [item.id]: Array.from(e.target.files ?? []) })} className={campo} />
-              <button disabled={processando === item.id} onClick={() => void responder(item.id)} className="rounded-xl border border-amber-300/30 px-4 py-2 font-bold text-amber-100 disabled:opacity-50">{processando === item.id ? "Enviando…" : "Enviar mensagem e anexos"}</button>
+              <button disabled={processando === item.id} onClick={() => void responder(item.id)} className="min-h-11 w-full rounded-xl border border-amber-300/30 px-4 py-2 font-bold text-amber-100 disabled:opacity-50 sm:w-auto">{processando === item.id ? "Enviando…" : "Enviar mensagem e anexos"}</button>
             </div>}
           </details>;
         }) : <EmptyState title="Nenhuma solicitação enviada" description="Use o formulário acima para iniciar um pedido." />}

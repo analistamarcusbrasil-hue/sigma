@@ -12,11 +12,12 @@
     "test:coverage": "vitest run --coverage",
     "test:permissions": "node --experimental-strip-types scripts/test-permissions.mjs",
     "test:homologacao": "node scripts/test-homologacao.mjs",
-    "test": "npm run test:unit && npm run test:permissions && npm run test:homologacao && npm run test:email && npm run test:secretaria && npm run test:relatorios && npm run test:pre-cadastro",
+    "test": "npm run test:unit && npm run test:permissions && npm run test:homologacao && npm run test:email && npm run test:secretaria && npm run test:relatorios && npm run test:ux && npm run test:pre-cadastro",
     "check": "npm run lint && npm run test && npm run build",
     "test:email": "node scripts/test-notificacoes-email.mjs",
     "test:secretaria": "node scripts/test-secretaria-documentos.mjs",
     "test:relatorios": "node scripts/test-relatorios-pdfs.mjs",
+    "test:ux": "node scripts/test-ux-mobile.mjs",
     "test:pre-cadastro": "node scripts/test-pre-cadastro-obreiro.mjs"
   },
   "dependencies": {

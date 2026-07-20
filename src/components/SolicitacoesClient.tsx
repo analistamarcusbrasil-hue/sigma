@@ -177,7 +177,7 @@ export function SolicitacoesClient() {
 
   if (load) return <LoadingState />;
 
-  return <div className="mt-8 space-y-6">
+  return <div className="mt-5 space-y-4 sm:mt-8 sm:space-y-6">
     <Feedback tone="info">Tesoureiro, Chanceler e Secretário emitem parecer e podem solicitar complementação. A aprovação ou recusa é exclusiva do Venerável Mestre.</Feedback>
     {msg && <Feedback tone={tom}>{msg}</Feedback>}
 
@@ -188,9 +188,9 @@ export function SolicitacoesClient() {
         ["Decisão do Venerável", resumo.veneravel, "text-violet-200"],
         ["Aguardando Obreiro", resumo.complemento, "text-orange-200"],
         ["Em atraso", resumo.atrasadas, "text-red-300"],
-      ].map(([titulo, valor, cor]) => <article key={String(titulo)} className="sigma-surface rounded-2xl p-4">
-        <p className="text-sm text-zinc-400">{titulo}</p>
-        <p className={`mt-1 text-3xl font-black ${cor}`}>{valor}</p>
+      ].map(([titulo, valor, cor]) => <article key={String(titulo)} className="sigma-surface rounded-2xl p-3 sm:p-4">
+        <p className="text-xs text-zinc-400 sm:text-sm">{titulo}</p>
+        <p className={`mt-1 text-2xl font-black sm:text-3xl ${cor}`}>{valor}</p>
       </article>)}
     </section>
 
@@ -223,16 +223,17 @@ export function SolicitacoesClient() {
         const tecnico = perfil === item.responsavelTecnicoPerfil;
         const podeAnalisar = tecnico || administrador;
         const encerrado = ["Recusada", "Concluída", "Cancelada"].includes(item.status);
-        return <details key={item.id} className="group sigma-surface rounded-3xl p-5">
-          <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-4 pb-1 marker:content-none">
-            <div>
+        return <details key={item.id} className="group sigma-surface rounded-2xl p-4 sm:rounded-3xl sm:p-5">
+          <summary className="flex cursor-pointer list-none flex-col gap-3 pb-1 marker:content-none sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0">
               <p className="text-xs font-bold uppercase tracking-wider text-amber-300">{item.protocolo}</p>
               <h2 className="mt-1 text-lg font-black">{item.titulo}</h2>
               <p className="text-sm text-zinc-400">{item.obreiroNome || "Obreiro"} · {item.tipo} · {dataHora(item.criadoEm)}</p>
             </div>
-            <div className="text-right text-sm">
+            <div className="flex items-center justify-between gap-3 text-sm sm:block sm:text-right">
               <span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span>
-              <p className="mt-2"><Prazo item={item} /></p>
+              <span className="rounded-xl border border-white/10 px-3 py-2 font-bold group-open:hidden">Ver detalhes</span><span className="hidden rounded-xl border border-white/10 px-3 py-2 font-bold group-open:inline">Recolher</span>
+              <p className="hidden sm:mt-2 sm:block"><Prazo item={item} /></p>
             </div>
           </summary>
 
@@ -269,7 +270,7 @@ export function SolicitacoesClient() {
               : <span key={anexo.id} className="rounded-lg bg-white/5 px-3 py-2 text-zinc-500">{anexo.nome}</span>)}</div>
           </div>}
 
-          <details className="mt-4 rounded-xl border border-white/10 p-4" open={!encerrado}>
+          <details className="mt-4 rounded-xl border border-white/10 p-4">
             <summary className="cursor-pointer font-bold">Tramitação e conversa ({item.tramitacoes.length})</summary>
             <ol className="mt-4 space-y-3 border-l border-amber-400/30 pl-4">
               {item.tramitacoes.map((movimento) => <li key={movimento.id} className="relative text-sm">
@@ -308,8 +309,8 @@ export function SolicitacoesClient() {
             </div>
           </div>}
 
-          {!encerrado && <div className="mt-4 flex flex-wrap justify-end gap-2">
-            <button disabled={processando === item.id} onClick={() => void enviarMensagem(item)} className="rounded-xl border border-white/10 px-4 py-2 text-sm font-bold disabled:opacity-40">Enviar mensagem/anexos</button>
+          {!encerrado && <div className="mt-4 grid gap-2 sm:flex sm:flex-wrap sm:justify-end">
+            <button disabled={processando === item.id} onClick={() => void enviarMensagem(item)} className="min-h-11 rounded-xl border border-white/10 px-4 py-2 text-sm font-bold disabled:opacity-40">Enviar mensagem/anexos</button>
 
             {podeAnalisar && item.status !== "Aprovada" && <button disabled={processando === item.id || item.status === "Em análise"} onClick={() => void executar(item, "ASSUMIR")} className="rounded-xl border border-sky-300/30 px-4 py-2 text-sm font-bold text-sky-100 disabled:opacity-40">Assumir análise</button>}
 
