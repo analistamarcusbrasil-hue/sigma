@@ -37,9 +37,9 @@ alter table public.notificacoes_email
 
 update public.notificacoes_email set status='Falhou' where status='Falha';
 
-create unique index if not exists notificacoes_email_dedupe_uidx
-  on public.notificacoes_email(dedupe_key)
-  where dedupe_key is not null;
+drop index if exists public.notificacoes_email_dedupe_uidx;
+create unique index notificacoes_email_dedupe_uidx
+  on public.notificacoes_email(dedupe_key);
 create index if not exists notificacoes_email_loja_status_idx
   on public.notificacoes_email(loja_id,status,criado_em desc);
 create index if not exists notificacoes_email_destinatario_idx
@@ -190,7 +190,7 @@ begin
         'Há uma nova atualização disponível no SIGMA.','Pendente',
         tipo_evento,rota,
         'tramitacao:'||new.id::text||':'||destinatario.id::text
-      ) on conflict(dedupe_key) do nothing;
+      ) on conflict do nothing;
     end loop;
   else
     select p.id,p.email,p.nome into destinatario
@@ -213,7 +213,7 @@ begin
         'Há uma nova atualização disponível no SIGMA.','Pendente',
         tipo_evento,rota,
         'tramitacao:'||new.id::text||':'||destinatario.id::text
-      ) on conflict(dedupe_key) do nothing;
+      ) on conflict do nothing;
     end if;
   end if;
   return new;
@@ -268,7 +268,7 @@ begin
         'Há uma nova atualização disponível no SIGMA.','Pendente',
         'Comunicado publicado','/portal-obreiro',
         'comunicado:'||new.id::text||':'||destinatario.id::text
-      ) on conflict(dedupe_key) do nothing;
+      ) on conflict do nothing;
     end if;
   end loop;
   return new;
