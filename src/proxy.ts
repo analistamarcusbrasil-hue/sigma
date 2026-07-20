@@ -22,7 +22,8 @@ export async function proxy(request: NextRequest) {
 
   const caminho = request.nextUrl.pathname;
   const { data: { user } } = await supabase.auth.getUser();
-  const publica = rotasPublicas.some((rota) => caminho.startsWith(rota));
+  const publica = rotasPublicas.some((rota) => caminho.startsWith(rota))
+    || caminho === "/pre-cadastro" || caminho === "/api/pre-cadastros";
   if (!user && !publica) return NextResponse.redirect(new URL("/login", request.url));
   if (!user) return response;
 

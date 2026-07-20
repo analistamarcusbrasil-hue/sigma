@@ -3,7 +3,14 @@
 ## Portal do Obreiro
 
 - Portal, solicitações e comunicados internos implementados com RLS individual.
+- Pré-cadastro público com avaliação administrativa, duplicidade e conversão controlada implementado.
 - Próximo passo: upload privado de comprovantes, notificações e confirmação de leitura avançada.
+
+## Pré-cadastro público
+
+- Formulário sem login, consentimento, honeypot, rate limit e lista limitada de Lojas ativas.
+- Aprovação, recusa, correção, conversão em Obreiro e criação separada de usuário implementadas.
+- Próximo passo: acompanhamento público por token e resposta de correção sem expor o cadastro.
 
 ## Prioridade 1 — ambiente de homologação
 

@@ -23,6 +23,7 @@ export type EventoEmail =
   | "Acesso ao Portal liberado"
   | "Senha definida pelo Administrador"
   | "Documento aprovado disponível"
+  | "Pré-cadastro recebido"
   | "Teste de envio";
 
 type ItemFila = {
@@ -62,6 +63,7 @@ const ASSUNTOS: Record<EventoEmail, string> = {
   "Acesso ao Portal liberado": "[SIGMA] Acesso ao Portal liberado",
   "Senha definida pelo Administrador": "[SIGMA] Credencial de acesso atualizada",
   "Documento aprovado disponível": "[SIGMA] Documento aprovado disponível",
+  "Pré-cadastro recebido": "[SIGMA] Novo pré-cadastro para avaliação",
   "Teste de envio": "[SIGMA] Teste de notificações",
 };
 

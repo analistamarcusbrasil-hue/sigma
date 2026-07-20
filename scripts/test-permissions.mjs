@@ -31,6 +31,10 @@ const cenarios = [
   ["Obreiro", "/portal-obreiro", "visualizar", true],
   ["Obreiro", "/portal-obreiro", "criar", true],
   ["Obreiro", "/dashboard", "visualizar", false],
+  ["Administrador", "/pre-cadastros", "aprovar", true],
+  ["Venerável Mestre", "/pre-cadastros", "aprovar", true],
+  ["Obreiro", "/pre-cadastros", "visualizar", false],
+  ["Secretário", "/pre-cadastros", "visualizar", false],
 ];
 
 for (const [perfil, modulo, acao, esperado] of cenarios) {
