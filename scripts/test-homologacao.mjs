@@ -9,10 +9,10 @@ for (const rota of rotas) {
   assert.ok(existsSync(join(raiz, arquivo)), `Rota sem page.tsx: ${rota}`);
 }
 const migrations = readdirSync(join(raiz, "supabase/migrations")).filter((nome) => nome.endsWith(".sql")).sort();
-assert.equal(migrations.length, 23, "A cadeia homologada deve conter 23 migrations");
+assert.equal(migrations.length, 25, "A cadeia homologada deve conter 25 migrations");
 assert.deepEqual(
   migrations.map((nome) => nome.slice(0, 8)),
-  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801"],
+  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803"],
   "Migrations fora de ordem"
 );
 
