@@ -14,11 +14,13 @@ const cenarios = [
   ["Tesoureiro", "/tesouraria", "editar", true],
   ["Tesoureiro", "/documentos", "criar", true],
   ["Tesoureiro", "/secretaria", "editar", false],
+  ["Tesoureiro", "/secretaria", "visualizar", true],
   ["Secretário", "/secretaria", "editar", true],
   ["Secretário", "/agenda", "criar", true],
   ["Secretário", "/tesouraria", "editar", false],
   ["Chanceler", "/chancelaria", "editar", true],
   ["Chanceler", "/tesouraria", "editar", false],
+  ["Chanceler", "/secretaria", "visualizar", true],
   ["Orador", "/documentos", "visualizar", true],
   ["Orador", "/documentos", "editar", false],
   ["Consulta", "/prestacao-contas", "visualizar", true],
@@ -33,7 +35,7 @@ for (const [perfil, modulo, acao, esperado] of cenarios) {
 }
 
 assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/tesouraria/livro-caixa"), true);
-assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/secretaria"), false);
+assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/secretaria"), true);
 assert.equal(podeAcessarModulo(permissoesPadrao("Consulta"), "/usuarios"), false);
 assert.equal(podeAcessarModulo(permissoesPadrao("Venerável Mestre"), "/backup"), true);
 assert.deepEqual(permissoesPadrao("Obreiro"), ["/portal-obreiro"]);

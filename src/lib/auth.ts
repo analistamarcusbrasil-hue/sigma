@@ -27,8 +27,8 @@ export const permissoesPorPerfil: Record<PerfilUsuario, string[]> = {
   Administrador: ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/backup", "/notificacoes", "/usuarios", "/comunicados", "/solicitacoes", "/loja", "/admin-sigma", "/onboarding"],
   "Venerável Mestre": ["/dashboard", "/agenda", "/obreiros", "/tesouraria", "/chancelaria", "/secretaria", "/prestacao-contas", "/patrimonio", "/documentos", "/configuracoes", "/auditoria", "/backup", "/comunicados", "/solicitacoes"],
   Secretário: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/secretaria", "/prestacao-contas", "/documentos", "/comunicados", "/solicitacoes"],
-  Tesoureiro: ["/dashboard", "/obreiros", "/tesouraria", "/prestacao-contas", "/documentos", "/comunicados", "/solicitacoes"],
-  Chanceler: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/comunicados", "/solicitacoes"],
+  Tesoureiro: ["/dashboard", "/obreiros", "/tesouraria", "/secretaria", "/prestacao-contas", "/documentos", "/comunicados", "/solicitacoes"],
+  Chanceler: ["/dashboard", "/agenda", "/obreiros", "/chancelaria", "/secretaria", "/comunicados", "/solicitacoes"],
   Orador: ["/dashboard", "/agenda", "/secretaria", "/documentos", "/prestacao-contas"],
   Consulta: ["/dashboard", "/agenda", "/prestacao-contas", "/documentos"],
   Obreiro: ["/portal-obreiro"],
@@ -40,9 +40,9 @@ const escrita:AcaoPermissao[]=[...leitura,"criar","editar"];
 export const acoesPorPerfil:Record<PerfilUsuario,Partial<Record<string,AcaoPermissao[]>>>={
  Administrador:{"*":[...escrita,"excluir","aprovar","cancelar","reabrir","alterar_protegido","desbloquear","ver_auditoria"]},
  "Venerável Mestre":{"*":[...leitura,"aprovar"],"/backup":[...leitura,"criar","excluir","aprovar"],"/configuracoes":[...escrita,"aprovar"],"/prestacao-contas":[...escrita,"aprovar","reabrir"],"/comunicados":escrita,"/solicitacoes":escrita},
- Tesoureiro:{"/tesouraria":[...escrita,"cancelar"],"/prestacao-contas":[...escrita,"aprovar"],"/documentos":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},
+ Tesoureiro:{"/tesouraria":[...escrita,"cancelar"],"/secretaria":leitura,"/prestacao-contas":[...escrita,"aprovar"],"/documentos":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},
  Secretário:{"/secretaria":escrita,"/documentos":escrita,"/agenda":escrita,"/chancelaria":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/prestacao-contas":leitura,"/dashboard":leitura,"/obreiros":leitura},
- Chanceler:{"/chancelaria":escrita,"/agenda":escrita,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},Orador:{"*":leitura},Consulta:{"*":leitura},Obreiro:{"/portal-obreiro":[...leitura,"criar"]}
+ Chanceler:{"/chancelaria":escrita,"/agenda":escrita,"/secretaria":leitura,"/comunicados":escrita,"/solicitacoes":escrita,"/dashboard":leitura,"/obreiros":leitura},Orador:{"*":leitura},Consulta:{"*":leitura},Obreiro:{"/portal-obreiro":[...leitura,"criar"]}
 };
 export function podeExecutar(perfil:PerfilUsuario,modulo:string,acao:AcaoPermissao){const regras=acoesPorPerfil[perfil];return Boolean(regras[modulo]?.includes(acao)||regras["*"]?.includes(acao));}
 export function moduloDaRota(rota:string){const modulos=Object.values(permissoesPorPerfil).flat();return [...new Set(modulos)].sort((a,b)=>b.length-a.length).find(m=>rota===m||rota.startsWith(`${m}/`))??rota;}
