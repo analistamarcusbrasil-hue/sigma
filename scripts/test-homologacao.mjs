@@ -3,16 +3,16 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const raiz = process.cwd();
-const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/notificacoes", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
+const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/secretaria/balaustres", "/secretaria/balaustres/novo", "/secretaria/atas-administrativas", "/secretaria/atas-administrativas/nova", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/notificacoes", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
 for (const rota of rotas) {
   const arquivo = rota === "/" ? "src/app/page.tsx" : `src/app${rota}/page.tsx`;
   assert.ok(existsSync(join(raiz, arquivo)), `Rota sem page.tsx: ${rota}`);
 }
 const migrations = readdirSync(join(raiz, "supabase/migrations")).filter((nome) => nome.endsWith(".sql")).sort();
-assert.equal(migrations.length, 27, "A cadeia homologada deve conter 27 migrations");
+assert.equal(migrations.length, 28, "A cadeia homologada deve conter 28 migrations");
 assert.deepEqual(
   migrations.map((nome) => nome.slice(0, 8)),
-  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804", "20260805"],
+  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804", "20260805", "20260806"],
   "Migrations fora de ordem"
 );
 

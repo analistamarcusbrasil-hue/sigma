@@ -1,0 +1,17 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+const raiz=process.cwd();
+const rotas=["src/app/secretaria/balaustres/page.tsx","src/app/secretaria/balaustres/novo/page.tsx","src/app/secretaria/balaustres/[id]/page.tsx","src/app/secretaria/atas-administrativas/page.tsx","src/app/secretaria/atas-administrativas/nova/page.tsx","src/app/secretaria/atas-administrativas/[id]/page.tsx","src/app/api/secretaria/documentos/[id]/pdf/route.ts"];
+for(const rota of rotas)assert.ok(existsSync(join(raiz,rota)),`Rota ausente: ${rota}`);
+const migration=readFileSync(join(raiz,"supabase/migrations/20260806_secretaria_balaustres_atas.sql"),"utf8");
+for(const regra of ["secretaria_documentos","secretaria_deliberacoes","secretaria_documento_historico","secretaria_documento_liberacoes","pode_ver_documento_secretaria","tem_financeiro","tem_presenca","Aguardando aprovação","Documento aprovado esta bloqueado","REABRIR","length(trim(coalesce(p_justificativa,'')))<10","perfil not in ('Administrador','Venerável Mestre')"])assert.ok(migration.includes(regra),`Regra de Secretaria ausente: ${regra}`);
+assert.ok(!/perfil in \([^)]*Obreiro/.test(migration),"Obreiro não pode receber acesso geral aos documentos internos.");
+const editor=readFileSync(join(raiz,"src/components/SecretariaDocumentoEditorClient.tsx"),"utf8");
+for(const regra of ["Gerar texto oficial","Salvar rascunho","Enviar para revisão","Aprovar e bloquear","Reabertura controlada","Deliberações","responsável","prazo","temFinanceiro","temPresenca"])assert.ok(editor.includes(regra),`Editor incompleto: ${regra}`);
+const pdf=readFileSync(join(raiz,"src/app/api/secretaria/documentos/[id]/pdf/route.ts"),"utf8");
+for(const regra of ["Sistema desenvolvido por Marcus Brasil","analista.marcusbrasil@gmail.com","Secretário","Venerável Mestre","Tesoureiro","Chanceler","Cache-Control"])assert.ok(pdf.includes(regra),`PDF institucional incompleto: ${regra}`);
+const auth=readFileSync(join(raiz,"src/lib/auth.ts"),"utf8");
+assert.match(auth,/Obreiro:\s*\["\/portal-obreiro"\]/,"Obreiro não deve acessar /secretaria.");
+console.log("Secretaria: rotas, fluxo, RLS, bloqueio e PDF validados.");
+
