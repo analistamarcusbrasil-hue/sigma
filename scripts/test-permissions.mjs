@@ -4,6 +4,11 @@ import { moduloDaRota, podeAcessarModulo, podeExecutar, permissoesPadrao } from 
 const cenarios = [
   ["Administrador", "/tesouraria", "excluir", true],
   ["Administrador", "/usuarios", "desbloquear", true],
+  ["Administrador", "/backup", "excluir", true],
+  ["Venerável Mestre", "/backup", "criar", true],
+  ["Venerável Mestre", "/backup", "excluir", true],
+  ["Obreiro", "/backup", "visualizar", false],
+  ["Tesoureiro", "/backup", "visualizar", false],
   ["Venerável Mestre", "/prestacao-contas", "aprovar", true],
   ["Venerável Mestre", "/tesouraria", "excluir", false],
   ["Tesoureiro", "/tesouraria", "editar", true],
@@ -30,6 +35,7 @@ for (const [perfil, modulo, acao, esperado] of cenarios) {
 assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/tesouraria/livro-caixa"), true);
 assert.equal(podeAcessarModulo(permissoesPadrao("Tesoureiro"), "/secretaria"), false);
 assert.equal(podeAcessarModulo(permissoesPadrao("Consulta"), "/usuarios"), false);
+assert.equal(podeAcessarModulo(permissoesPadrao("Venerável Mestre"), "/backup"), true);
 assert.deepEqual(permissoesPadrao("Obreiro"), ["/portal-obreiro"]);
 assert.equal(podeAcessarModulo(permissoesPadrao("Obreiro"), "/dashboard"), false);
 assert.equal(moduloDaRota("/tesouraria/fechamento-mensal"), "/tesouraria");
