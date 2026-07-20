@@ -187,6 +187,7 @@ export function TesourariaClient() {
   const [novoLancamento, setNovoLancamento] = useState(lancamentoVazio);
   const [custosLoja, setCustosLoja] = useState<CustoLoja[]>([]);
   const [novoCusto, setNovoCusto] = useState(custoVazio);
+  const [custoEditando, setCustoEditando] = useState("");
   const [saldoAnterior, setSaldoAnterior] = useState(0);
   const [gestaoAtiva, setGestaoAtiva] = useState(() => obterGestaoAtualDoStorage());
   const [erroBanco, setErroBanco] = useState("");
@@ -588,14 +589,27 @@ export function TesourariaClient() {
       return;
     }
 
-    const parcelas = gerarParcelasCusto(
+    const existente = custosLoja.find((item) => item.id === custoEditando);
+    const pagas = existente?.parcelas.filter((parcela) => parcela.pago).length ?? 0;
+    if (Number(novoCusto.parcelasQtd) < pagas) {
+      alert(`Mantenha ao menos ${pagas} parcela(s), pois já existem pagamentos registrados.`);
+      return;
+    }
+
+    const recalculadas = gerarParcelasCusto(
       Number(novoCusto.valorTotal),
       Number(novoCusto.parcelasQtd),
       novoCusto.dataInicio
     );
+    const parcelas = recalculadas.map((parcela, indice) => {
+      const anterior = existente?.parcelas[indice];
+      return anterior?.pago
+        ? { ...parcela, pago: true, dataPagamento: anterior.dataPagamento }
+        : parcela;
+    });
 
     const custo: CustoLoja = {
-        id: gerarId(),
+        id: custoEditando || gerarId(),
         fornecedorNome: novoCusto.fornecedorNome.trim(),
         cnpj: novoCusto.cnpj.trim(),
         tipoDivida: novoCusto.tipoDivida,
@@ -608,9 +622,12 @@ export function TesourariaClient() {
       };
     try { await salvarCustoFinanceiro(custo); }
     catch (falha) { setErroBanco(falha instanceof Error ? falha.message : "Não foi possível salvar o custo."); return; }
-    setCustosLoja((atuais) => [custo, ...atuais]);
+    setCustosLoja((atuais) => custoEditando
+      ? atuais.map((item) => item.id === custoEditando ? custo : item)
+      : [custo, ...atuais]);
 
     setNovoCusto(custoVazio);
+    setCustoEditando("");
   }
 
   async function alternarPagamentoParcela(custoId: string, parcelaId: string) {
@@ -1142,12 +1159,15 @@ export function TesourariaClient() {
               className="rounded-xl border border-white/10 bg-black/30 px-4 py-3 text-white outline-none focus:border-amber-400"
             />
 
-            <button
-              type="submit"
-              className="rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
-            >
-              Cadastrar custo
-            </button>
+            <div className="flex gap-2">
+              <button
+                type="submit"
+                className="flex-1 rounded-full bg-amber-400 px-5 py-3 font-semibold text-black transition hover:bg-amber-300"
+              >
+                {custoEditando ? "Salvar e recalcular parcelas" : "Cadastrar custo"}
+              </button>
+              {custoEditando && <button type="button" onClick={() => { setCustoEditando(""); setNovoCusto(custoVazio); }} className="rounded-full border border-white/15 px-4 py-3 text-sm">Cancelar</button>}
+            </div>
           </div>
 
           <input
@@ -1221,6 +1241,25 @@ export function TesourariaClient() {
                     <span className="rounded-full border border-amber-400/30 px-3 py-1 text-amber-300">
                       Aberto: {formatarMoeda(Math.max(aberto, 0))}
                     </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustoEditando(custo.id);
+                        setNovoCusto({
+                          fornecedorNome: custo.fornecedorNome,
+                          cnpj: custo.cnpj,
+                          tipoDivida: custo.tipoDivida,
+                          descricao: custo.descricao,
+                          valorTotal: custo.valorTotal,
+                          parcelasQtd: custo.parcelasQtd,
+                          dataInicio: custo.dataInicio,
+                        });
+                        document.getElementById("custos")?.scrollIntoView({ behavior: "smooth" });
+                      }}
+                      className="rounded-full border border-sky-400/30 px-3 py-1 text-xs font-semibold text-sky-200 transition hover:bg-sky-400/10"
+                    >
+                      Editar e recalcular
+                    </button>
                     <button
                       type="button"
                       onClick={() => removerCusto(custo.id)}
