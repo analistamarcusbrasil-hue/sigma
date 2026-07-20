@@ -10,8 +10,9 @@ assert.ok(!/perfil in \([^)]*Obreiro/.test(migration),"Obreiro não pode receber
 const editor=readFileSync(join(raiz,"src/components/SecretariaDocumentoEditorClient.tsx"),"utf8");
 for(const regra of ["Gerar texto oficial","Salvar rascunho","Enviar para revisão","Aprovar e bloquear","Reabertura controlada","Deliberações","responsável","prazo","temFinanceiro","temPresenca"])assert.ok(editor.includes(regra),`Editor incompleto: ${regra}`);
 const pdf=readFileSync(join(raiz,"src/app/api/secretaria/documentos/[id]/pdf/route.ts"),"utf8");
-for(const regra of ["Sistema desenvolvido por Marcus Brasil","analista.marcusbrasil@gmail.com","Secretário","Venerável Mestre","Tesoureiro","Chanceler","Cache-Control"])assert.ok(pdf.includes(regra),`PDF institucional incompleto: ${regra}`);
+const padrao=readFileSync(join(raiz,"src/lib/relatorios/pdf-institucional.ts"),"utf8");
+for(const regra of ["Secretário","Venerável Mestre","Tesoureiro","Chanceler","Cache-Control","gerarPdfInstitucional"])assert.ok(pdf.includes(regra),`PDF institucional incompleto: ${regra}`);
+for(const regra of ["Sistema desenvolvido por Marcus Brasil","analista.marcusbrasil@gmail.com"])assert.ok(padrao.includes(regra),`Rodapé institucional incompleto: ${regra}`);
 const auth=readFileSync(join(raiz,"src/lib/auth.ts"),"utf8");
 assert.match(auth,/Obreiro:\s*\["\/portal-obreiro"\]/,"Obreiro não deve acessar /secretaria.");
 console.log("Secretaria: rotas, fluxo, RLS, bloqueio e PDF validados.");
-

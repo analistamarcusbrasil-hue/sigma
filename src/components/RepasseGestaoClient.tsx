@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Feedback, LoadingState } from "@/components/ui/Feedback";
 import { FormField } from "@/components/ui/FormField";
 import { repasseDivergente, saldoRepasse } from "@/lib/financeiro";
+import { abrirRelatorio } from "@/lib/relatorios/client";
 import { listarGestoes, listarObreiros, listarPrestacoesFinais, listarRepasses, salvarRepasse, type GestaoOperacional, type PrestacaoFinal, type RepasseGestao } from "@/lib/supabase/operacional";
 
 const moeda = (valor: number) => valor.toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
@@ -45,7 +46,6 @@ export function RepasseGestaoClient() {
   const saldo = saldoRepasse(repasse.caixa, repasse.banco, repasse.creditos, repasse.obrigacoes);
   const divergente = repasseDivergente(saldo, prestacao?.saldoLiquidoRepasse ?? saldo);
   const protegido = repasse.status === "Finalizado";
-  const responsavel = obreiros.find((item) => item.id === repasse.responsavelRepasseId)?.nome ?? "Não informado";
 
   async function salvar(status: string) {
     if (!repasse) return;
@@ -60,25 +60,7 @@ export function RepasseGestaoClient() {
     finally { setSalvando(false); }
   }
 
-  async function gerarTermo() {
-    if (!gestao || !repasse) return;
-    const { jsPDF } = await import("jspdf");
-    const documento = new jsPDF();
-    const linhas = [
-      "SIGMA 2.0 - Termo de Repasse de Gestão", `Gestão de origem: ${gestao.nomeGestao}`,
-      `Período: ${gestao.dataInicioGestao} a ${gestao.dataFimGestao}`, `Status: ${repasse.status}`,
-      `Data do repasse: ${repasse.dataRepasse || "Não informada"}`, `Responsável pelo repasse: ${responsavel}`,
-      `Caixa físico: ${moeda(repasse.caixa)}`, `Conta bancária: ${moeda(repasse.banco)}`, `Créditos: ${moeda(repasse.creditos)}`,
-      `Obrigações: ${moeda(repasse.obrigacoes)}`, `Saldo líquido: ${moeda(saldo)}`,
-      `Pendências financeiras: ${repasse.pendenciasFinanceiras || "Nenhuma informada"}`,
-      `Pendências administrativas: ${repasse.pendenciasAdministrativas || "Nenhuma informada"}`,
-      `Documentos pendentes: ${repasse.documentosPendentes || "Nenhum informado"}`,
-    ];
-    documento.setFontSize(16); documento.text(linhas[0], 14, 18); documento.setFontSize(10);
-    linhas.slice(1).forEach((linha, indice) => documento.text(linha.slice(0, 110), 14, 32 + indice * 9));
-    documento.setFontSize(8); documento.text("Sistema desenvolvido por Marcus Brasil | Contato: analista.marcusbrasil@gmail.com", 14, 290);
-    documento.save(`termo-repasse-${gestao.nomeGestao.replaceAll(" ", "-")}.pdf`);
-  }
+  function gerarTermo() { abrirRelatorio("repasse-gestao", { inicio: gestao?.dataInicioGestao, fim: repasse?.dataRepasse || gestao?.dataFimGestao }); }
 
   return <div className="mt-8 space-y-6">
     {erro && <Feedback tone="error">{erro}</Feedback>}{sucesso && <Feedback tone="success">{sucesso}</Feedback>}

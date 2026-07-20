@@ -53,6 +53,7 @@ export const modulos = [
     href: "/auditoria",
     descricao: "Histórico seguro de alterações e responsáveis.",
   },
+  { nome: "Relatórios", href: "/relatorios", descricao: "PDFs institucionais, pré-visualização e auditoria por Loja." },
   {
     nome: "Notificações",
     href: "/notificacoes",

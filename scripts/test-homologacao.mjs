@@ -3,26 +3,24 @@ import { existsSync, readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const raiz = process.cwd();
-const rotas = ["/", "/login", "/dashboard", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/secretaria/balaustres", "/secretaria/balaustres/novo", "/secretaria/atas-administrativas", "/secretaria/atas-administrativas/nova", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/notificacoes", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
+const rotas = ["/", "/login", "/dashboard", "/relatorios", "/agenda", "/obreiros", "/configuracoes", "/tesouraria", "/tesouraria/livro-caixa", "/tesouraria/fechamento-mensal", "/prestacao-contas", "/prestacao-contas/final", "/repasse-gestao", "/configuracoes/repasse", "/patrimonio", "/documentos", "/chancelaria", "/secretaria", "/secretaria/balaustres", "/secretaria/balaustres/novo", "/secretaria/atas-administrativas", "/secretaria/atas-administrativas/nova", "/auditoria", "/usuarios", "/usuarios/desbloqueios", "/backup", "/notificacoes", "/portal-obreiro", "/alterar-senha", "/comunicados", "/solicitacoes", "/loja", "/onboarding", "/admin-sigma"];
 for (const rota of rotas) {
   const arquivo = rota === "/" ? "src/app/page.tsx" : `src/app${rota}/page.tsx`;
   assert.ok(existsSync(join(raiz, arquivo)), `Rota sem page.tsx: ${rota}`);
 }
 const migrations = readdirSync(join(raiz, "supabase/migrations")).filter((nome) => nome.endsWith(".sql")).sort();
-assert.equal(migrations.length, 28, "A cadeia homologada deve conter 28 migrations");
+assert.equal(migrations.length, 29, "A cadeia homologada deve conter 29 migrations");
 assert.deepEqual(
   migrations.map((nome) => nome.slice(0, 8)),
-  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804", "20260805", "20260806"],
+  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804", "20260805", "20260806", "20260807"],
   "Migrations fora de ordem"
 );
 
 const operacional = readFileSync(join(raiz, "src/lib/supabase/operacional.ts"), "utf8");
 assert.match(operacional, /\["Rascunho",\s*"Cancelado"\]\.includes/, "Rascunho e cancelado devem ficar fora dos totais");
-for (const componente of ["FechamentoMensalClient.tsx", "PrestacaoFinalClient.tsx", "RepasseGestaoClient.tsx"]) {
-  const conteudo = readFileSync(join(raiz, "src/components", componente), "utf8");
-  assert.match(conteudo, /Sistema desenvolvido por Marcus Brasil/, `${componente} sem identificação no PDF`);
-  assert.match(conteudo, /analista\.marcusbrasil@gmail\.com/, `${componente} sem contato no PDF`);
-}
+const padraoPdf = readFileSync(join(raiz, "src/lib/relatorios/pdf-institucional.ts"), "utf8");
+assert.match(padraoPdf, /Sistema desenvolvido por Marcus Brasil/, "Padrão PDF sem identificação");
+assert.match(padraoPdf, /analista\.marcusbrasil@gmail\.com/, "Padrão PDF sem contato");
 
 const rls = readFileSync(join(raiz, "supabase/migrations/20260726_homologation_rls_alignment.sql"), "utf8");
 for (const regra of ["documentos: cria por acao", "documentos: edita por acao", "patrimonio: cria por acao", "patrimonio: edita por acao"]) assert.ok(rls.includes(regra), `Policy ausente: ${regra}`);
