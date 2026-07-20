@@ -281,8 +281,7 @@ after insert or update of status on public.comunicados_internos
 for each row execute function public.enfileirar_email_comunicado();
 
 update public.profiles
-set permissoes=case when permissoes ? '/notificacoes' then permissoes else permissoes||'["/notificacoes"]'::jsonb end,
-    atualizado_em=now()
+set permissoes=case when permissoes ? '/notificacoes' then permissoes else permissoes||'["/notificacoes"]'::jsonb end
 where perfil='Administrador' and status='ativo';
 
 update public.loja_usuarios
