@@ -9,10 +9,10 @@ for (const rota of rotas) {
   assert.ok(existsSync(join(raiz, arquivo)), `Rota sem page.tsx: ${rota}`);
 }
 const migrations = readdirSync(join(raiz, "supabase/migrations")).filter((nome) => nome.endsWith(".sql")).sort();
-assert.equal(migrations.length, 25, "A cadeia homologada deve conter 25 migrations");
+assert.equal(migrations.length, 26, "A cadeia homologada deve conter 26 migrations");
 assert.deepEqual(
   migrations.map((nome) => nome.slice(0, 8)),
-  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803"],
+  [...Array.from({ length: 22 }, (_, indice) => String(20260710 + indice)), "20260801", "20260802", "20260803", "20260804"],
   "Migrations fora de ordem"
 );
 
@@ -80,6 +80,20 @@ assert.ok(existsSync(join(raiz, "src/app/portal-obreiro/solicitacoes/[id]/compro
 
 const email = readFileSync(join(raiz, "src/lib/notificacoes-email.ts"), "utf8");
 for (const regra of ["RESEND_API_KEY", "notificacoes_email", "Aguardando configuração", "processarNotificacoesPendentes"]) assert.ok(email.includes(regra), `Notificação por e-mail ausente: ${regra}`);
+
+const backupMigration = readFileSync(join(raiz, "supabase/migrations/20260804_backup_module.sql"), "utf8");
+for (const regra of ["backups_sistema", "backups_eventos", "backups-sigma", "pode_gerenciar_backup", "backup_pre_restauracao", "Excluído"]) assert.ok(backupMigration.includes(regra), `Proteção de Backup ausente: ${regra}`);
+
+const backupServer = readFileSync(join(raiz, "src/lib/backup/server.ts"), "utf8");
+for (const regra of ["server-only", "sha256", "stringifyEstavel", "auth.users", "backup_pre_restauracao", "outra Loja", "storage_privado"]) assert.ok(backupServer.includes(regra), `Serviço seguro de Backup ausente: ${regra}`);
+
+const backupActions = readFileSync(join(raiz, "src/app/backup/actions.ts"), "utf8");
+for (const regra of ["criarBackupAction", "previsualizarRestauracaoAction", "excluirBackupAction", "headers"]) assert.ok(backupActions.includes(regra), `Ação de Backup ausente: ${regra}`);
+
+const backupClient = readFileSync(join(raiz, "src/components/BackupDadosClient.tsx"), "utf8");
+for (const regra of ["Novo backup", "Baixar último", "RESTAURAR", "APAGAR", "Histórico de backups", "Nenhum dado atual é apagado"]) assert.ok(backupClient.includes(regra), `Interface de Backup ausente: ${regra}`);
+
+assert.ok(existsSync(join(raiz, "src/app/api/backups/[id]/download/route.ts")), "Rota privada de download ausente");
 
 const accessBoundary = readFileSync(join(raiz, "src/components/AccessBoundary.tsx"), "utf8");
 assert.ok(accessBoundary.includes('!podeExecutar(perfil,modulo,"criar")'), "Perfil com ação criar não pode ser tratado como somente consulta");
