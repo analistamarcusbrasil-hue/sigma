@@ -300,17 +300,17 @@ export function PortalSolicitacoesClient() {
       <div className="mt-4 space-y-5">
         {dados.solicitacoes.length ? dados.solicitacoes.map((item) => {
           const dias = diasAte(item.prazoEm);
-          return <article key={item.id} className="rounded-2xl border border-white/10 p-4 text-sm">
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          return <details key={item.id} className="group rounded-2xl border border-white/10 p-4 text-sm">
+            <summary className="flex cursor-pointer list-none flex-wrap items-start justify-between gap-3 marker:content-none">
               <div>
                 <p className="text-xs font-bold uppercase tracking-wider text-amber-300">{item.protocolo}</p>
                 <h3 className="mt-1 text-lg font-black">{item.titulo}</h3>
                 <p className="text-zinc-400">{item.tipo} · {dataHora(item.criadoEm)}</p>
               </div>
-              <span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span>
-            </div>
+              <div className="text-right"><span className="rounded-full bg-amber-400/10 px-3 py-1 font-bold text-amber-200">{item.status}</span><p className="mt-2 text-xs text-zinc-500">Clique para abrir os detalhes</p></div>
+            </summary>
 
-            <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <div className="mt-3 border-t border-white/10 pt-3 grid gap-2 sm:grid-cols-3">
               <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-zinc-500">Análise técnica</p><b>{item.areaDestino} · {item.responsavelTecnicoPerfil}</b></div>
               <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-zinc-500">Etapa atual</p><b>{item.etapaAtual}</b></div>
               <div className="rounded-xl bg-black/20 p-3"><p className="text-xs text-zinc-500">Prazo</p><b>{encerrada(item.status) ? "Finalizado" : dias < 0 ? `${Math.abs(dias)} dia(s) em atraso` : dias === 0 ? "Vence hoje" : `${dias} dia(s) restante(s)`}</b></div>
@@ -361,7 +361,7 @@ export function PortalSolicitacoesClient() {
               <input type="file" multiple accept={formatosAceitos} onChange={(e) => setArquivosResposta({ ...arquivosResposta, [item.id]: Array.from(e.target.files ?? []) })} className={campo} />
               <button disabled={processando === item.id} onClick={() => void responder(item.id)} className="rounded-xl border border-amber-300/30 px-4 py-2 font-bold text-amber-100 disabled:opacity-50">{processando === item.id ? "Enviando…" : "Enviar mensagem e anexos"}</button>
             </div>}
-          </article>;
+          </details>;
         }) : <EmptyState title="Nenhuma solicitação enviada" description="Use o formulário acima para iniciar um pedido." />}
       </div>
     </section>
