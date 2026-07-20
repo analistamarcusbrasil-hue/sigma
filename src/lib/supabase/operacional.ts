@@ -102,11 +102,21 @@ export async function listarAgenda(): Promise<EventoAgenda[]> {
 
 export async function salvarEventoAgenda(evento: EventoAgenda): Promise<EventoAgenda> {
   const loja = await obterLojaAtual();
-  const payload = { loja_id: loja.id, sessao_id: evento.sessaoId || null, titulo: evento.titulo.trim(), tipo: evento.tipo, descricao: evento.descricao.trim() || null, inicio: evento.inicio, fim: evento.fim || null, dia_inteiro: evento.diaInteiro, local: evento.local.trim() || null, responsavel_id: evento.responsavelId || null, status: evento.status, recorrencia: evento.recorrencia, lembrete_minutos: evento.lembreteMinutos, visibilidade:evento.visibilidade };
+  const inicio = new Date(evento.inicio);
+  const fim = evento.fim ? new Date(evento.fim) : null;
+  if (!evento.titulo.trim()) throw new Error("Informe o título do compromisso.");
+  if (Number.isNaN(inicio.getTime())) throw new Error("Informe uma data e hora de início válidas.");
+  if (fim && Number.isNaN(fim.getTime())) throw new Error("Informe uma data e hora de término válidas.");
+  if (fim && fim < inicio) throw new Error("O término não pode ser anterior ao início.");
+  const payload = { loja_id: loja.id, sessao_id: evento.sessaoId || null, titulo: evento.titulo.trim(), tipo: evento.tipo, descricao: evento.descricao.trim() || null, inicio: inicio.toISOString(), fim: fim?.toISOString() || null, dia_inteiro: evento.diaInteiro, local: evento.local.trim() || null, responsavel_id: evento.responsavelId || null, status: evento.status, recorrencia: evento.recorrencia, lembrete_minutos: Math.max(0, Number(evento.lembreteMinutos) || 0), visibilidade:evento.visibilidade || "Público da Loja" };
   const query = evento.id ? createClient().from("agenda_eventos").update(payload).eq("id", evento.id).eq("loja_id", loja.id) : createClient().from("agenda_eventos").insert(payload);
   const { data, error } = await query.select("id").single();
-  if (error) throw new Error(error.message);
-  return { ...evento, id: data.id };
+  if (error) {
+    if (error.code === "42501") throw new Error("Seu perfil não tem permissão para alterar a Agenda desta Loja.");
+    if (error.code === "23514") throw new Error("Revise datas, situação e tipo do compromisso.");
+    throw new Error("Não foi possível salvar o compromisso. Tente novamente.");
+  }
+  return { ...evento, inicio: payload.inicio, fim: payload.fim ?? "", id: data.id };
 }
 
 export async function excluirEventoAgenda(id: string) {
@@ -167,7 +177,7 @@ export async function salvarObreiro(obreiro: Obreiro): Promise<Obreiro> {
   const payload = {
     loja_id: loja.id, nome: obreiro.nome.trim(), grau: obreiro.grau, cargo: obreiro.cargo || null,
     telefone: obreiro.telefone || null, email: obreiro.email.trim().toLowerCase() || null,
-    situacao: obreiro.situacao, data_cadastro: obreiro.dataCadastro, observacoes: obreiro.observacoes || null,
+    situacao: obreiro.situacao, data_cadastro: obreiro.dataCadastro || new Date().toISOString().slice(0, 10), observacoes: obreiro.observacoes || null,
     tipo: obreiro.tipo ?? "Obreiro da Loja", loja_origem: obreiro.lojaOrigem || null,
   };
   const query = obreiro.id
@@ -344,8 +354,18 @@ export async function excluirRecebimentosDaCompetencia(mes: string) {
 
 export async function salvarLancamentoFinanceiro(item: LancamentoFinanceiro) {
   const loja = await obterLojaAtual();
-  const { error } = await createClient().from("lancamentos_financeiros").upsert({ id: item.id, loja_id: loja.id, sessao_id: item.sessaoId || null, data: item.data, tipo: item.tipo, descricao: item.descricao, valor: item.valor });
-  if (error) throw new Error(error.message);
+  const natureza = item.tipo === "Despesa" ? "Saída" : "Entrada";
+  const origem = item.tipo === "Tronco de Solidariedade" ? "Tronco" : item.tipo === "Despesa" ? "Despesa" : "Manual";
+  const { error } = await createClient().from("lancamentos_financeiros").upsert({
+    id: item.id, loja_id: loja.id, sessao_id: item.sessaoId || null, data: item.data,
+    competencia: item.data, tipo: item.tipo, natureza, origem, descricao: item.descricao.trim(),
+    valor: item.valor, status_caixa: "Lançado", situacao: "Efetivado",
+  });
+  if (error) {
+    if (error.code === "23502" || error.code === "23514") throw new Error("Revise o tipo, a data e o valor do lançamento financeiro.");
+    if (error.code === "42501") throw new Error("Seu perfil não tem permissão para lançar na Tesouraria.");
+    throw new Error("Não foi possível salvar o lançamento financeiro. Tente novamente.");
+  }
 }
 
 export async function excluirLancamentoFinanceiro(id: string) {
@@ -355,7 +375,10 @@ export async function excluirLancamentoFinanceiro(id: string) {
 export async function salvarCustoFinanceiro(item: CustoFinanceiro) {
   const loja = await obterLojaAtual();
   const { error } = await createClient().from("custos_loja").upsert({ id: item.id, loja_id: loja.id, fornecedor_nome: item.fornecedorNome, cnpj: item.cnpj || null, tipo_divida: item.tipoDivida, descricao: item.descricao || null, valor_total: item.valorTotal, parcelas_qtd: item.parcelasQtd, data_inicio: item.dataInicio, data_fim: item.dataFim || null, parcelas: item.parcelas });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23514") throw new Error("Revise valor, quantidade e parcelas do custo.");
+    throw new Error("Não foi possível salvar o custo da Loja.");
+  }
 }
 
 export async function excluirCustoFinanceiro(id: string) {
@@ -402,7 +425,10 @@ export async function sincronizarSecretaria(estado: SecretariaBanco) {
 export async function salvarAcaoSecretaria(item: AcaoBanco) {
   const loja = await obterLojaAtual();
   const { error } = await createClient().from("acoes_secretaria").upsert({ id: item.id, loja_id: loja.id, titulo: item.titulo, responsavel_id: item.responsavelId || null, prazo: item.prazo || null, status: item.status, observacao: item.observacao || null });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23514") throw new Error("O status selecionado não é válido. Escolha uma das opções exibidas.");
+    throw new Error("Não foi possível salvar a ação da Secretaria. Tente novamente.");
+  }
 }
 
 export async function excluirAcaoSecretaria(id: string) {
@@ -412,7 +438,10 @@ export async function excluirAcaoSecretaria(id: string) {
 export async function salvarProcessoSecretaria(item: ProcessoBanco) {
   const loja = await obterLojaAtual();
   const { error } = await createClient().from("processos_secretaria").upsert({ id: item.id, loja_id: loja.id, nome: item.nome, tipo: item.tipo, etapa: item.etapa || null, responsavel_id: item.responsavelId || null, data_prevista: item.dataPrevista || null, status: item.status, observacao: item.observacao || null });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23514") throw new Error("O status selecionado não é válido. Escolha uma das opções exibidas.");
+    throw new Error("Não foi possível salvar o processo da Secretaria. Tente novamente.");
+  }
 }
 
 export async function excluirProcessoSecretaria(id: string) {
@@ -422,7 +451,10 @@ export async function excluirProcessoSecretaria(id: string) {
 export async function salvarPecaArquitetura(item: PecaBanco) {
   const loja = await obterLojaAtual();
   const { error } = await createClient().from("pecas_arquitetura").upsert({ id: item.id, loja_id: loja.id, titulo: item.titulo, obreiro_id: item.obreiroId || null, grau: item.grau || null, data_prevista: item.dataPrevista || null, status: item.status, observacao: item.observacao || null });
-  if (error) throw new Error(error.message);
+  if (error) {
+    if (error.code === "23514") throw new Error("O status selecionado não é válido. Escolha uma das opções exibidas.");
+    throw new Error("Não foi possível salvar a peça de arquitetura. Tente novamente.");
+  }
 }
 
 export async function excluirPecaArquitetura(id: string) {
