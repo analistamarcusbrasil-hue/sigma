@@ -54,6 +54,11 @@ export const modulos = [
     descricao: "Histórico seguro de alterações e responsáveis.",
   },
   {
+    nome: "Notificações",
+    href: "/notificacoes",
+    descricao: "Fila de e-mails, testes, falhas e reenvios do Resend.",
+  },
+  {
     nome: "Backup",
     href: "/backup",
     descricao: "Versões privadas, download, auditoria e restauração segura por Loja.",
