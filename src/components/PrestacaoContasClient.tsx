@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { carregarSecretaria, carregarTesouraria, listarGestoes, listarObreiros } from "@/lib/supabase/operacional";
-import { jsPDF } from "jspdf";
+import { abrirRelatorio } from "@/lib/relatorios/client";
 import type { Obreiro } from "@/types";
 import { FormField } from "@/components/ui/FormField";
 
@@ -621,25 +621,9 @@ Documento gerado pelo SIGMA 2.0.`;
   }
 
   function baixarPDF() {
-    const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
-    const linhas = pdf.splitTextToSize(textoRelatorio(), 180);
-
-    let y = 18;
-
-    pdf.setFont("times", "normal");
-    pdf.setFontSize(12);
-
-    linhas.forEach((linha: string) => {
-      if (y > 280) {
-        pdf.addPage();
-        y = 18;
-      }
-
-      pdf.text(linha, 15, y);
-      y += 6;
-    });
-
-    pdf.save(`prestacao_de_contas_${tipoRelatorio === "Anual" ? anoTrabalho : mesSelecionado}.pdf`);
+    const inicio=tipoRelatorio==="Anual"?`${anoTrabalho}-01-01`:`${mesSelecionado}-01`;
+    const fim=tipoRelatorio==="Anual"?`${anoTrabalho}-12-31`:`${mesSelecionado}-31`;
+    abrirRelatorio("prestacao-contas",{inicio,fim});
   }
 
   if (!carregado) {

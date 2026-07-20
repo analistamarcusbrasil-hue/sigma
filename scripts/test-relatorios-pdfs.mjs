@@ -1,0 +1,16 @@
+import assert from "node:assert/strict";
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+const raiz=process.cwd();
+for(const arquivo of ["src/app/relatorios/page.tsx","src/app/api/relatorios/[tipo]/route.ts","src/lib/relatorios/pdf-institucional.ts","src/components/RelatoriosClient.tsx","supabase/migrations/20260807_professional_reports_pdfs.sql"])assert.ok(existsSync(join(raiz,arquivo)),`Arquivo de relatórios ausente: ${arquivo}`);
+const pdf=readFileSync(join(raiz,"src/lib/relatorios/pdf-institucional.ts"),"utf8");
+for(const regra of ["Sistema desenvolvido por Marcus Brasil","analista.marcusbrasil@gmail.com","toLocaleString(\"pt-BR\"","currency: \"BRL\"","Página ${pagina} de ${paginas}","if (y + altura > limiteConteudo)"])assert.ok(pdf.includes(regra),`Padrão PDF ausente: ${regra}`);
+const rota=readFileSync(join(raiz,"src/app/api/relatorios/[tipo]/route.ts"),"utf8");
+for(const tipo of ["frequencia-sessao","frequencia-mensal","livro-caixa","fechamento-mensal","prestacao-contas","repasse-gestao","tronco-solidariedade","custos-fixos","solicitacoes"])assert.ok(rota.includes(tipo),`Relatório ausente: ${tipo}`);
+for(const regra of ['.eq("loja_id",lojaId)',"relatorios_geracoes","disposition","private, no-store","X-Content-Type-Options"])assert.ok(rota.includes(regra),`Segurança/auditoria ausente: ${regra}`);
+assert.ok(!rota.includes("SUPABASE_SECRET_KEY"),"Chave privilegiada não pode participar da geração.");
+const migration=readFileSync(join(raiz,"supabase/migrations/20260807_professional_reports_pdfs.sql"),"utf8");
+for(const regra of ["relatorios_geracoes","usuario_pertence_loja","usuario_id=auth.uid()","auditoria_operacional"])assert.ok(migration.includes(regra),`Migration de auditoria incompleta: ${regra}`);
+const secretaria=readFileSync(join(raiz,"src/app/api/secretaria/documentos/[id]/pdf/route.ts"),"utf8");
+assert.ok(secretaria.includes("gerarPdfInstitucional")&&secretaria.includes('tipo:"balaustre-ata"'),"Balaústre/Ata não usa o padrão auditado.");
+console.log("Relatórios: 10 prioridades, padrão institucional, auditoria e isolamento por Loja validados.");

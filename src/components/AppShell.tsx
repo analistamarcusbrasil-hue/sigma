@@ -39,6 +39,7 @@ const iconesModulo: Record<string, string> = {
   "/documentos": "▤",
   "/configuracoes": "⚙",
   "/auditoria": "◎",
+  "/relatorios": "▤",
   "/backup": "↻",
   "/usuarios": "♚",
   "/portal-obreiro": "♙",
